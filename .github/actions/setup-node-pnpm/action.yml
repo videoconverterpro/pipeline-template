@@ -89,20 +89,6 @@ runs:
           ${{ runner.os }}-node-modules-
     
     # ========================================================================
-    # STEP 5: Cache - Prisma engines
-    # ========================================================================
-    - name: "💾 [ACTION] Cache - Prisma engines"
-      uses: actions/cache@v4
-      with:
-        path: |
-          node_modules/.prisma
-          node_modules/@prisma
-        key: ${{ runner.os }}-prisma-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**/schema.prisma') }}
-        restore-keys: |
-          ${{ runner.os }}-prisma-${{ hashFiles('**/pnpm-lock.yaml') }}-
-          ${{ runner.os }}-prisma-
-    
-    # ========================================================================
     # STEP 6: Instalar dependências (se cache MISS)
     # ========================================================================
     - name: "📥 [ACTION] Instalar dependências"
@@ -113,7 +99,21 @@ runs:
         pnpm install --frozen-lockfile
     
     # ========================================================================
-    # STEP 7: Verificar instalação
+    # STEP 7: Gerar Prisma Client (sempre, após install)
+    # ========================================================================
+    - name: "⚙️ [ACTION] Gerar Prisma Client"
+      shell: bash
+      run: |
+        if [ -f "prisma/schema.prisma" ]; then
+          echo "⚙️  Gerando Prisma Client..."
+          pnpm prisma generate
+          echo "✅ Prisma Client gerado com sucesso!"
+        else
+          echo "ℹ️  Projeto não usa Prisma"
+        fi
+    
+    # ========================================================================
+    # STEP 8: Verificar instalação
     # ========================================================================
     - name: "✅ [ACTION] Verificar instalação"
       shell: bash
@@ -123,13 +123,5 @@ runs:
         else
           echo "✅ Dependências instaladas com sucesso."
         fi
-        
-        # Sempre regenerar Prisma Client (necessário em CI)
-        if [ -f "prisma/schema.prisma" ]; then
-          echo "⚙️  Regenerando Prisma Client..."
-          pnpm prisma generate
-          echo "✅ Prisma Client gerado com sucesso!"
-        fi
-        
         echo ""
         echo "🎉 Setup concluído com sucesso!"
