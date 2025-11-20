@@ -1,0 +1,65 @@
+# ============================================================================
+# ✅ COMPOSITE ACTION REUTILIZÁVEL: Quality Check (Prettier + ESLint)
+# ============================================================================
+# 
+# PROPÓSITO:
+#   Action genérica para validação de qualidade de código:
+#   - Prettier: Verifica formatação
+#   - ESLint: Valida linting com --max-warnings 0
+#   100% reutilizável por qualquer projeto Node.js.
+#
+# COMO USAR:
+#   steps:
+#     - uses: actions/checkout@v4
+#     - uses: videoconverterpro/pipeline-template/.github/actions/setup-node-pnpm@main
+#     - uses: videoconverterpro/pipeline-template/.github/actions/quality-check@main
+#       with:
+#         format-script: 'format:check'
+#         lint-script: 'lint:check'
+#
+# PRÉ-REQUISITOS:
+#   - node_modules instalado (usar setup-node-pnpm antes)
+#   - Scripts no package.json
+#
+# PROPRIEDADE:
+#   Bruno Roberto Morillo - CPF: 460.876.598-11
+#   © 2025 VideoConverterPro - Todos os direitos reservados
+#
+# ============================================================================
+
+name: "✅ Quality Check"
+description: "Validação de qualidade: Prettier + ESLint strict"
+
+inputs:
+  format-script:
+    description: "Nome do script de format check no package.json"
+    required: false
+    default: "format:check"
+  
+  lint-script:
+    description: "Nome do script de lint check no package.json"
+    required: false
+    default: "lint:check"
+
+runs:
+  using: "composite"
+  steps:
+    # ========================================================================
+    # STEP 1: Prettier - Validar formatação
+    # ========================================================================
+    - name: "💅 [ACTION] Prettier - Validar formatação"
+      shell: bash
+      run: |
+        echo "🔍 Verificando formatação com Prettier..."
+        pnpm run ${{ inputs.format-script }}
+        echo "✅ Formatação OK!"
+    
+    # ========================================================================
+    # STEP 2: ESLint - Validar linting
+    # ========================================================================
+    - name: "🔍 [ACTION] ESLint - Validar linting"
+      shell: bash
+      run: |
+        echo "🔍 Verificando linting com ESLint..."
+        pnpm run ${{ inputs.lint-script }}
+        echo "✅ Linting OK!"

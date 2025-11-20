@@ -1,0 +1,138 @@
+# ============================================================================
+# 🔧 COMPOSITE ACTION REUTILIZÁVEL: Setup Node.js + pnpm + Cache
+# ============================================================================
+# 
+# PROPÓSITO:
+#   Action genérica para configurar ambiente Node.js com pnpm e sistema
+#   de cache multi-camadas (node_modules, Prisma engines, pnpm store).
+#   100% reutilizável por qualquer projeto Node.js/NestJS/Express/etc.
+#
+# COMO USAR:
+#   steps:
+#     - uses: actions/checkout@v4
+#     - uses: videoconverterpro/pipeline-template/.github/actions/setup-node-pnpm@main
+#       with:
+#         node-version: '24'
+#         pnpm-version: '10'
+#
+# SAÍDAS:
+#   - Ambiente configurado: Node.js + pnpm instalados
+#   - Dependências instaladas (via cache ou pnpm install)
+#   - Prisma Client gerado (se existir schema.prisma)
+#
+# CACHE:
+#   - Layer 1: pnpm store - 60s economia
+#   - Layer 2: node_modules - 60s economia (PRINCIPAL)
+#   - Layer 3: Prisma engines - 30s economia
+#   - Cache HIT total: ~85% mais rápido
+#
+# PROPRIEDADE:
+#   Bruno Roberto Morillo - CPF: 460.876.598-11
+#   © 2025 VideoConverterPro - Todos os direitos reservados
+#
+# ============================================================================
+
+name: "🔧 Setup Node.js + pnpm"
+description: "Setup Node.js + pnpm com cache multi-camadas para otimização máxima"
+
+inputs:
+  node-version:
+    description: "Versão do Node.js (ex: 24, 20, 18)"
+    required: false
+    default: "24"
+  
+  pnpm-version:
+    description: "Versão do pnpm (ex: 10, 9, 8)"
+    required: false
+    default: "10"
+
+runs:
+  using: "composite"
+  steps:
+    # ========================================================================
+    # STEP 1: Setup Node.js (SEM cache nativo)
+    # ========================================================================
+    - name: "🟢 [ACTION] Setup Node.js ${{ inputs.node-version }}"
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+    
+    # ========================================================================
+    # STEP 2: Setup pnpm
+    # ========================================================================
+    - name: "📦 [ACTION] Setup pnpm ${{ inputs.pnpm-version }}"
+      uses: pnpm/action-setup@v4
+      with:
+        version: ${{ inputs.pnpm-version }}
+    
+    # ========================================================================
+    # STEP 3: Cache - pnpm store
+    # ========================================================================
+    - name: "💾 [ACTION] Cache - pnpm store"
+      uses: actions/cache@v4
+      with:
+        path: ~/.pnpm-store
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-pnpm-store-
+    
+    # ========================================================================
+    # STEP 4: Cache - node_modules (PRINCIPAL)
+    # ========================================================================
+    - name: "💾 [ACTION] Cache - node_modules"
+      uses: actions/cache@v4
+      id: node-modules-cache
+      with:
+        path: node_modules
+        key: ${{ runner.os }}-node-modules-${{ hashFiles('**/pnpm-lock.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-node-modules-
+    
+    # ========================================================================
+    # STEP 5: Cache - Prisma engines
+    # ========================================================================
+    - name: "💾 [ACTION] Cache - Prisma engines"
+      uses: actions/cache@v4
+      with:
+        path: |
+          node_modules/.prisma
+          node_modules/@prisma
+        key: ${{ runner.os }}-prisma-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**/schema.prisma') }}
+        restore-keys: |
+          ${{ runner.os }}-prisma-${{ hashFiles('**/pnpm-lock.yaml') }}-
+          ${{ runner.os }}-prisma-
+    
+    # ========================================================================
+    # STEP 6: Instalar dependências (se cache MISS)
+    # ========================================================================
+    - name: "📥 [ACTION] Instalar dependências"
+      if: steps.node-modules-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        echo "❌ Cache MISS! Instalando dependências..."
+        pnpm install --frozen-lockfile
+    
+    # ========================================================================
+    # STEP 7: Verificar instalação
+    # ========================================================================
+    - name: "✅ [ACTION] Verificar instalação"
+      shell: bash
+      run: |
+        if [ "${{ steps.node-modules-cache.outputs.cache-hit }}" == "true" ]; then
+          echo "✅ Cache HIT! Dependências restauradas do cache."
+        else
+          echo "✅ Dependências instaladas com sucesso."
+        fi
+        
+        # Verificar Prisma Client
+        if [ -f "prisma/schema.prisma" ]; then
+          if [ ! -d "node_modules/.prisma/client" ]; then
+            echo "⚠️  Gerando Prisma Client..."
+            pnpm prisma generate
+          else
+            echo "✅ Prisma Client OK"
+          fi
+        fi
+        
+        echo ""
+        echo "🎉 Setup concluído com sucesso!"

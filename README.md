@@ -1,136 +1,74 @@
-# 🚀 Pipeline Template - Workflows Reutilizáveis
+# 🚀 Pipeline Template - Composite Actions Reutilizáveis
 
 [![License](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-24+-green.svg)](https://nodejs.org/)
 [![pnpm](https://img.shields.io/badge/pnpm-10+-blue.svg)](https://pnpm.io/)
 
-Workflows reutilizáveis do GitHub Actions para projetos Node.js/NestJS/TypeScript.
+Composite Actions reutilizáveis do GitHub Actions para projetos Node.js/NestJS/TypeScript.
 
-**100% genéricos** - Use em qualquer projeto sem duplicar código!
+**100% genéricos** - Use em qualquer projeto sem duplicar código!  
+**✅ Funciona com repositórios privados** - Sem necessidade de GitHub Enterprise!
 
 ---
 
-## 📦 Workflows Disponíveis
+## 📦 Actions Disponíveis
 
 ### 1. 🔧 Setup Node.js + pnpm + Cache
-**Arquivo:** `.github/workflows/setup-node-pnpm.yml`
+
+**Arquivo:** `.github/actions/setup-node-pnpm/action.yml`
 
 Configura ambiente Node.js com pnpm e sistema de cache multi-camadas.
 
-**Características:**
-- ✅ Node.js e pnpm instalados
-- ✅ Cache inteligente (pnpm store, node_modules, Prisma engines)
-- ✅ 85% mais rápido com cache hit
-- ✅ Detecta e regenera Prisma Client automaticamente
-
 **Uso:**
+
 ```yaml
-jobs:
-  setup:
-    uses: videoconverterpro/pipeline-template/.github/workflows/setup-node-pnpm.yml@main
+steps:
+  - uses: actions/checkout@v4
+  - uses: videoconverterpro/pipeline-template/.github/actions/setup-node-pnpm@main
     with:
       node-version: '24'      # Opcional, padrão: '24'
       pnpm-version: '10'      # Opcional, padrão: '10'
-      working-directory: '.'  # Opcional, padrão: '.'
 ```
 
 ---
 
 ### 2. ✅ Quality Check (Prettier + ESLint)
-**Arquivo:** `.github/workflows/quality-check.yml`
+
+**Arquivo:** `.github/actions/quality-check/action.yml`
 
 Valida formatação e linting do código.
 
-**Características:**
-- ✅ Prettier format check
-- ✅ ESLint com --max-warnings 0 (strict)
-- ✅ Fail-fast (falha imediatamente se código não conforme)
-- ✅ Modo check-only (não modifica código)
-
 **Uso:**
-```yaml
-jobs:
-  quality:
-    needs: setup  # Executar após setup
-    uses: videoconverterpro/pipeline-template/.github/workflows/quality-check.yml@main
-    with:
-      working-directory: '.'          # Opcional, padrão: '.'
-      format-script: 'format:check'   # Opcional, padrão: 'format:check'
-      lint-script: 'lint:check'       # Opcional, padrão: 'lint:check'
-```
 
-**Pré-requisitos no `package.json`:**
-```json
-{
-  "scripts": {
-    "format:check": "prettier --check .",
-    "lint:check": "eslint . --max-warnings 0"
-  }
-}
+```yaml
+steps:
+  - uses: actions/checkout@v4
+  - uses: videoconverterpro/pipeline-template/.github/actions/setup-node-pnpm@main
+  - uses: videoconverterpro/pipeline-template/.github/actions/quality-check@main
+    with:
+      format-script: 'format:check'   # Opcional
+      lint-script: 'lint:check'       # Opcional
 ```
 
 ---
 
 ### 3. 🏗️ Build + Artifact Upload
-**Arquivo:** `.github/workflows/build-app.yml`
+
+**Arquivo:** `.github/actions/build-app/action.yml`
 
 Compila aplicação e faz upload do artifact.
 
-**Características:**
-- ✅ Executa script de build configurado
-- ✅ Upload automático de artifact (dist/)
-- ✅ Retenção configurável (padrão: 7 dias)
-- ✅ Suporta NestJS, React, Next.js, Vite, etc.
-
 **Uso:**
+
 ```yaml
-jobs:
-  build:
-    needs: [setup, quality]
-    uses: videoconverterpro/pipeline-template/.github/workflows/build-app.yml@main
+steps:
+  - uses: actions/checkout@v4
+  - uses: videoconverterpro/pipeline-template/.github/actions/setup-node-pnpm@main
+  - uses: videoconverterpro/pipeline-template/.github/actions/build-app@main
     with:
-      working-directory: '.'       # Opcional, padrão: '.'
-      build-script: 'build'        # Opcional, padrão: 'build'
-      dist-folder: 'dist'          # Opcional, padrão: 'dist'
-      artifact-retention: 7        # Opcional, dias de retenção
-```
-
-**Pré-requisitos no `package.json`:**
-```json
-{
-  "scripts": {
-    "build": "nest build"  // ou "tsc", "vite build", etc.
-  }
-}
-```
-
----
-
-### 4. 🚀 Pipeline Completa de Validação
-**Arquivo:** `.github/workflows/validate-pipeline.yml`
-
-Pipeline completa orquestrando setup → quality → build.
-
-**Características:**
-- ✅ Execução sequencial: Setup → Quality → Build
-- ✅ Todas as validações em uma única chamada
-- ✅ Altamente customizável
-- ✅ Perfeito para branches de homologação
-
-**Uso:**
-```yaml
-jobs:
-  validate:
-    uses: videoconverterpro/pipeline-template/.github/workflows/validate-pipeline.yml@main
-    with:
-      node-version: '24'
-      pnpm-version: '10'
-      working-directory: '.'
-      format-script: 'format:check'
-      lint-script: 'lint:check'
-      build-script: 'build'
-      dist-folder: 'dist'
-      artifact-retention: 7
+      build-script: 'build'        # Opcional
+      dist-folder: 'dist'          # Opcional
+      artifact-retention: 7        # Opcional
 ```
 
 ---
@@ -147,16 +85,24 @@ name: "🔍 Validação Homologação"
 on:
   push:
     branches: [homolog]
-  pull_request:
-    branches: [homolog]
 
 jobs:
   validate:
     name: "🔍 Validar Código"
-    uses: videoconverterpro/pipeline-template/.github/workflows/validate-pipeline.yml@main
-    with:
-      node-version: '24'
-      pnpm-version: '10'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: videoconverterpro/pipeline-template/.github/actions/setup-node-pnpm@main
+        with:
+          node-version: '24'
+          pnpm-version: '10'
+      
+      - uses: videoconverterpro/pipeline-template/.github/actions/quality-check@main
+      
+      - uses: videoconverterpro/pipeline-template/.github/actions/build-app@main
+        with:
+          artifact-retention: 7
 ```
 
 **Resultado:**
@@ -179,59 +125,30 @@ on:
     branches: [main]
 
 jobs:
-  # Validação completa
   validate:
     name: "🔍 Validar"
-    uses: videoconverterpro/pipeline-template/.github/workflows/validate-pipeline.yml@main
-    with:
-      node-version: '24'
-      pnpm-version: '10'
-      artifact-retention: 30  # Produção: retenção maior
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: videoconverterpro/pipeline-template/.github/actions/setup-node-pnpm@main
+      - uses: videoconverterpro/pipeline-template/.github/actions/quality-check@main
+      - uses: videoconverterpro/pipeline-template/.github/actions/build-app@main
+        with:
+          artifact-retention: 30  # Produção: retenção maior
   
-  # Deploy (seu job customizado)
   deploy:
     name: "🚀 Deploy VPS"
     needs: validate
     runs-on: ubuntu-latest
     steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: dist-${{ github.sha }}
       
-      - name: Deploy para VPS
+      - name: Deploy
         run: |
-          # Seu script de deploy aqui
           scp -r dist/ user@vps:/app
           ssh user@vps "pm2 restart app"
-```
-
----
-
-### Exemplo 3: Monorepo (Múltiplos Projetos)
-
-```yaml
-name: "🔍 Validação Monorepo"
-
-on: [push, pull_request]
-
-jobs:
-  # API Backend
-  validate-api:
-    name: "🔍 API"
-    uses: videoconverterpro/pipeline-template/.github/workflows/validate-pipeline.yml@main
-    with:
-      working-directory: 'packages/api'
-      build-script: 'build'
-  
-  # Frontend App
-  validate-app:
-    name: "🔍 App"
-    uses: videoconverterpro/pipeline-template/.github/workflows/validate-pipeline.yml@main
-    with:
-      working-directory: 'packages/app'
-      build-script: 'build'
-      dist-folder: 'out'  # Next.js usa 'out'
 ```
 
 ---
