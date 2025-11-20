@@ -124,14 +124,11 @@ runs:
           echo "✅ Dependências instaladas com sucesso."
         fi
         
-        # Verificar Prisma Client
+        # Sempre regenerar Prisma Client (necessário em CI)
         if [ -f "prisma/schema.prisma" ]; then
-          if [ ! -d "node_modules/.prisma/client" ]; then
-            echo "⚠️  Gerando Prisma Client..."
-            pnpm prisma generate
-          else
-            echo "✅ Prisma Client OK"
-          fi
+          echo "⚙️  Regenerando Prisma Client..."
+          pnpm prisma generate
+          echo "✅ Prisma Client gerado com sucesso!"
         fi
         
         echo ""
