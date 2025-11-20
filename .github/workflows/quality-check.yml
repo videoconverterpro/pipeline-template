@@ -1,0 +1,156 @@
+# ============================================================================
+# ✅ WORKFLOW REUTILIZÁVEL: Quality Check (Linting + Formatting)
+# ============================================================================
+# 
+# PROPÓSITO:
+#   Workflow genérico para validação de qualidade de código:
+#   - Prettier: Verifica formatação (format:check)
+#   - ESLint: Valida linting com --max-warnings 0 (lint:check)
+#   100% reutilizável por qualquer projeto Node.js com scripts configurados.
+#
+# COMO USAR:
+#   jobs:
+#     quality:
+#       needs: setup  # Executar após setup
+#       uses: videoconverterpro/pipeline-template/.github/workflows/quality-check.yml@main
+#       with:
+#         working-directory: '.'  # Opcional, padrão é raiz
+#         format-script: 'format:check'  # Opcional, padrão
+#         lint-script: 'lint:check'      # Opcional, padrão
+#
+# PRÉ-REQUISITOS:
+#   - node_modules instalado (executar workflow setup-node-pnpm antes)
+#   - Scripts no package.json:
+#     * "format:check": "prettier --check ."
+#     * "lint:check": "eslint . --max-warnings 0"
+#
+# VALIDAÇÕES:
+#   - Formatação Prettier (fail-fast se código mal formatado)
+#   - Linting ESLint strict (fail-fast se warnings ou errors)
+#   - Modo check-only (não modifica código)
+#
+# PROPRIEDADE:
+#   Bruno Roberto Morillo - CPF: 460.876.598-11
+#   © 2025 VideoConverterPro - Todos os direitos reservados
+#
+# ============================================================================
+
+name: "✅ Quality Check"
+
+on:
+  workflow_call:
+    inputs:
+      # Diretório de trabalho (para monorepos)
+      working-directory:
+        description: 'Diretório onde está o package.json'
+        required: false
+        type: string
+        default: '.'
+      
+      # Script customizado de formatação
+      format-script:
+        description: 'Nome do script de format check no package.json'
+        required: false
+        type: string
+        default: 'format:check'
+      
+      # Script customizado de linting
+      lint-script:
+        description: 'Nome do script de lint check no package.json'
+        required: false
+        type: string
+        default: 'lint:check'
+
+jobs:
+  # ==========================================================================
+  # JOB: Validação de qualidade
+  # ==========================================================================
+  quality-check:
+    name: "✅ Prettier + ESLint"
+    runs-on: ubuntu-latest
+    
+    # Diretório padrão para todos os steps
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    
+    steps:
+      # ======================================================================
+      # STEP 1: Checkout do código
+      # ======================================================================
+      - name: "📥 [STEP] Checkout código"
+        uses: actions/checkout@v4
+      
+      # ======================================================================
+      # STEP 2: Setup Node.js + pnpm (SEM cache nativo)
+      # ======================================================================
+      - name: "🟢 [STEP] Setup Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      
+      - name: "📦 [STEP] Setup pnpm"
+        uses: pnpm/action-setup@v4
+        with:
+          version: '10'
+      
+      # ======================================================================
+      # STEP 3: Restaurar cache de node_modules
+      # ======================================================================
+      # Reutiliza cache gerado pelo workflow setup-node-pnpm
+      # Se cache MISS: Instala dependências
+      # ======================================================================
+      - name: "💾 [ACTION] Restaurar cache - node_modules"
+        uses: actions/cache@v4
+        id: node-modules-cache
+        with:
+          path: ${{ inputs.working-directory }}/node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles(format('{0}/**/pnpm-lock.yaml', inputs.working-directory)) }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+      
+      - name: "📥 [ACTION] Instalar dependências (se cache MISS)"
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+        run: pnpm install --frozen-lockfile
+      
+      # ======================================================================
+      # STEP 4: Prettier - Validação de formatação
+      # ======================================================================
+      # Executa script configurado (padrão: format:check)
+      # Falha se código não estiver formatado corretamente
+      # Modo check-only: NÃO modifica arquivos
+      # ======================================================================
+      - name: "💅 [ACTION] Prettier - Validar formatação"
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          echo "🔍 Verificando formatação com Prettier..."
+          pnpm run ${{ inputs.format-script }}
+          echo "✅ Formatação OK!"
+      
+      # ======================================================================
+      # STEP 5: ESLint - Validação de linting
+      # ======================================================================
+      # Executa script configurado (padrão: lint:check)
+      # Falha se houver erros OU warnings (--max-warnings 0)
+      # Modo check-only: NÃO modifica arquivos
+      # ======================================================================
+      - name: "🔍 [ACTION] ESLint - Validar linting"
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          echo "🔍 Verificando linting com ESLint..."
+          pnpm run ${{ inputs.lint-script }}
+          echo "✅ Linting OK!"
+      
+      # ======================================================================
+      # STEP 6: Sucesso
+      # ======================================================================
+      - name: "🎉 [STEP] Quality check concluído"
+        shell: bash
+        run: |
+          echo "✅ Código está limpo e padronizado!"
+          echo "✅ Prettier: OK"
+          echo "✅ ESLint: OK"

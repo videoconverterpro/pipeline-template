@@ -1,0 +1,190 @@
+# ============================================================================
+# 🏗️ WORKFLOW REUTILIZÁVEL: Build e Artifact Upload
+# ============================================================================
+# 
+# PROPÓSITO:
+#   Workflow genérico para build de projetos Node.js e upload de artifacts:
+#   - Executa script de build configurado (ex: nest build, tsc, webpack)
+#   - Upload da pasta dist/ como artifact (7 dias retenção)
+#   100% reutilizável por qualquer projeto Node.js/NestJS/Express/React/etc.
+#
+# COMO USAR:
+#   jobs:
+#     build:
+#       needs: [setup, quality]  # Executar após setup e quality
+#       uses: videoconverterpro/pipeline-template/.github/workflows/build-app.yml@main
+#       with:
+#         working-directory: '.'     # Opcional, padrão é raiz
+#         build-script: 'build'      # Opcional, padrão
+#         dist-folder: 'dist'        # Opcional, padrão
+#         artifact-retention: 7      # Opcional, dias de retenção
+#
+# PRÉ-REQUISITOS:
+#   - node_modules instalado (executar workflow setup-node-pnpm antes)
+#   - Script no package.json:
+#     * "build": "nest build" (ou tsc, webpack, vite, etc)
+#
+# SAÍDAS:
+#   - Pasta dist/ buildada
+#   - Artifact uploadado: dist-<commit-sha>
+#   - Retenção configurável (padrão: 7 dias)
+#
+# PROPRIEDADE:
+#   Bruno Roberto Morillo - CPF: 460.876.598-11
+#   © 2025 VideoConverterPro - Todos os direitos reservados
+#
+# ============================================================================
+
+name: "🏗️ Build e Artifact"
+
+on:
+  workflow_call:
+    inputs:
+      # Diretório de trabalho (para monorepos)
+      working-directory:
+        description: 'Diretório onde está o package.json'
+        required: false
+        type: string
+        default: '.'
+      
+      # Script customizado de build
+      build-script:
+        description: 'Nome do script de build no package.json'
+        required: false
+        type: string
+        default: 'build'
+      
+      # Nome da pasta de output do build
+      dist-folder:
+        description: 'Nome da pasta de output (dist, build, out, etc)'
+        required: false
+        type: string
+        default: 'dist'
+      
+      # Dias de retenção do artifact
+      artifact-retention:
+        description: 'Dias de retenção do artifact no GitHub'
+        required: false
+        type: number
+        default: 7
+
+jobs:
+  # ==========================================================================
+  # JOB: Build e upload de artifact
+  # ==========================================================================
+  build:
+    name: "🏗️ Build + Upload Artifact"
+    runs-on: ubuntu-latest
+    
+    # Diretório padrão para todos os steps
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    
+    steps:
+      # ======================================================================
+      # STEP 1: Checkout do código
+      # ======================================================================
+      - name: "📥 [STEP] Checkout código"
+        uses: actions/checkout@v4
+      
+      # ======================================================================
+      # STEP 2: Setup Node.js + pnpm
+      # ======================================================================
+      - name: "🟢 [STEP] Setup Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      
+      - name: "📦 [STEP] Setup pnpm"
+        uses: pnpm/action-setup@v4
+        with:
+          version: '10'
+      
+      # ======================================================================
+      # STEP 3: Restaurar cache de node_modules
+      # ======================================================================
+      # Reutiliza cache gerado pelo workflow setup-node-pnpm
+      # Se cache MISS: Instala dependências
+      # ======================================================================
+      - name: "💾 [ACTION] Restaurar cache - node_modules"
+        uses: actions/cache@v4
+        id: node-modules-cache
+        with:
+          path: ${{ inputs.working-directory }}/node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles(format('{0}/**/pnpm-lock.yaml', inputs.working-directory)) }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+      
+      - name: "📥 [ACTION] Instalar dependências (se cache MISS)"
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+        run: pnpm install --frozen-lockfile
+      
+      # ======================================================================
+      # STEP 4: Restaurar cache do Prisma (se existir)
+      # ======================================================================
+      - name: "💾 [ACTION] Restaurar cache - Prisma engines"
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ inputs.working-directory }}/node_modules/.prisma
+            ${{ inputs.working-directory }}/node_modules/@prisma
+          key: ${{ runner.os }}-prisma-${{ hashFiles(format('{0}/**/pnpm-lock.yaml', inputs.working-directory)) }}-${{ hashFiles(format('{0}/**/schema.prisma', inputs.working-directory)) }}
+          restore-keys: |
+            ${{ runner.os }}-prisma-${{ hashFiles(format('{0}/**/pnpm-lock.yaml', inputs.working-directory)) }}-
+            ${{ runner.os }}-prisma-
+      
+      # ======================================================================
+      # STEP 5: Build da aplicação
+      # ======================================================================
+      # Executa script configurado (padrão: build)
+      # Exemplos comuns:
+      #   - NestJS: "nest build"
+      #   - TypeScript: "tsc"
+      #   - React/Vite: "vite build"
+      #   - Next.js: "next build"
+      # ======================================================================
+      - name: "🏗️ [ACTION] Build da aplicação"
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          echo "🏗️ Buildando aplicação..."
+          pnpm run ${{ inputs.build-script }}
+          echo "✅ Build concluído com sucesso!"
+          
+          # Verifica se pasta de output existe
+          if [ ! -d "${{ inputs.dist-folder }}" ]; then
+            echo "❌ Erro: Pasta '${{ inputs.dist-folder }}' não encontrada após build!"
+            exit 1
+          fi
+          
+          echo "📦 Conteúdo da pasta ${{ inputs.dist-folder }}:"
+          ls -lah ${{ inputs.dist-folder }}
+      
+      # ======================================================================
+      # STEP 6: Upload do artifact
+      # ======================================================================
+      # Faz upload da pasta dist/ como artifact
+      # Nome: dist-<commit-sha> (único por commit)
+      # Retenção: Configurável (padrão 7 dias)
+      # Útil para deploy manual ou troubleshooting
+      # ======================================================================
+      - name: "📤 [ACTION] Upload artifact - ${{ inputs.dist-folder }}"
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.dist-folder }}-${{ github.sha }}
+          path: ${{ inputs.working-directory }}/${{ inputs.dist-folder }}
+          retention-days: ${{ inputs.artifact-retention }}
+          if-no-files-found: error
+      
+      # ======================================================================
+      # STEP 7: Sucesso
+      # ======================================================================
+      - name: "🎉 [STEP] Build concluído"
+        shell: bash
+        run: |
+          echo "✅ Build realizado com sucesso!"
+          echo "📦 Artifact: ${{ inputs.dist-folder }}-${{ github.sha }}"
+          echo "⏰ Retenção: ${{ inputs.artifact-retention }} dias"

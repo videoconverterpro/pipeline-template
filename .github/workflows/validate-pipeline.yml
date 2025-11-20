@@ -1,0 +1,163 @@
+# ============================================================================
+# 🚀 WORKFLOW REUTILIZÁVEL: Pipeline Completa de Validação
+# ============================================================================
+# 
+# PROPÓSITO:
+#   Workflow orquestrador que executa pipeline completa de validação:
+#   1. Setup (Node.js + pnpm + cache)
+#   2. Quality Check (Prettier + ESLint)
+#   3. Build (compilação + artifact)
+#   
+#   Pipeline genérica para validação de PRs, branches de homologação, etc.
+#   100% reutilizável por qualquer projeto Node.js.
+#
+# COMO USAR:
+#   # No repositório do projeto, criar .github/workflows/homolog.yml:
+#   
+#   name: Validação Homologação
+#   on:
+#     push:
+#       branches: [homolog]
+#     pull_request:
+#       branches: [homolog]
+#   
+#   jobs:
+#     validate:
+#       uses: videoconverterpro/pipeline-template/.github/workflows/validate-pipeline.yml@main
+#       with:
+#         node-version: '24'
+#         pnpm-version: '10'
+#
+# CUSTOMIZAÇÕES:
+#   - Versões de Node.js e pnpm
+#   - Diretório de trabalho (monorepos)
+#   - Scripts customizados (build, lint, format)
+#   - Retenção de artifacts
+#
+# SAÍDAS:
+#   - Código validado (formatação + linting)
+#   - Build compilado
+#   - Artifact disponível (7 dias)
+#
+# PROPRIEDADE:
+#   Bruno Roberto Morillo - CPF: 460.876.598-11
+#   © 2025 VideoConverterPro - Todos os direitos reservados
+#
+# ============================================================================
+
+name: "🚀 Pipeline Validação Completa"
+
+on:
+  workflow_call:
+    inputs:
+      # Versão do Node.js
+      node-version:
+        description: 'Versão do Node.js'
+        required: false
+        type: string
+        default: '24'
+      
+      # Versão do pnpm
+      pnpm-version:
+        description: 'Versão do pnpm'
+        required: false
+        type: string
+        default: '10'
+      
+      # Diretório de trabalho
+      working-directory:
+        description: 'Diretório onde está o package.json'
+        required: false
+        type: string
+        default: '.'
+      
+      # Scripts customizados
+      format-script:
+        description: 'Script de format check'
+        required: false
+        type: string
+        default: 'format:check'
+      
+      lint-script:
+        description: 'Script de lint check'
+        required: false
+        type: string
+        default: 'lint:check'
+      
+      build-script:
+        description: 'Script de build'
+        required: false
+        type: string
+        default: 'build'
+      
+      # Configurações de build
+      dist-folder:
+        description: 'Pasta de output do build'
+        required: false
+        type: string
+        default: 'dist'
+      
+      artifact-retention:
+        description: 'Dias de retenção do artifact'
+        required: false
+        type: number
+        default: 7
+
+jobs:
+  # ==========================================================================
+  # JOB 1: Setup - Configurar ambiente e cache
+  # ==========================================================================
+  setup:
+    name: "🔧 Setup Ambiente"
+    uses: videoconverterpro/pipeline-template/.github/workflows/setup-node-pnpm.yml@main
+    with:
+      node-version: ${{ inputs.node-version }}
+      pnpm-version: ${{ inputs.pnpm-version }}
+      working-directory: ${{ inputs.working-directory }}
+  
+  # ==========================================================================
+  # JOB 2: Quality - Validar código (Prettier + ESLint)
+  # ==========================================================================
+  quality:
+    name: "✅ Quality Check"
+    needs: setup
+    uses: videoconverterpro/pipeline-template/.github/workflows/quality-check.yml@main
+    with:
+      working-directory: ${{ inputs.working-directory }}
+      format-script: ${{ inputs.format-script }}
+      lint-script: ${{ inputs.lint-script }}
+  
+  # ==========================================================================
+  # JOB 3: Build - Compilar e gerar artifact
+  # ==========================================================================
+  build:
+    name: "🏗️ Build Aplicação"
+    needs: [setup, quality]
+    uses: videoconverterpro/pipeline-template/.github/workflows/build-app.yml@main
+    with:
+      working-directory: ${{ inputs.working-directory }}
+      build-script: ${{ inputs.build-script }}
+      dist-folder: ${{ inputs.dist-folder }}
+      artifact-retention: ${{ inputs.artifact-retention }}
+  
+  # ==========================================================================
+  # JOB 4: Sucesso - Confirmação final
+  # ==========================================================================
+  success:
+    name: "🎉 Pipeline Concluída"
+    needs: [setup, quality, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: "🎉 Validação completa com sucesso!"
+        shell: bash
+        run: |
+          echo "======================================"
+          echo "✅ PIPELINE CONCLUÍDA COM SUCESSO!"
+          echo "======================================"
+          echo ""
+          echo "✅ Setup: Node.js ${{ inputs.node-version }} + pnpm ${{ inputs.pnpm-version }}"
+          echo "✅ Quality: Prettier + ESLint"
+          echo "✅ Build: ${{ inputs.dist-folder }}/ gerado"
+          echo ""
+          echo "📦 Artifact disponível por ${{ inputs.artifact-retention }} dias"
+          echo "🚀 Pronto para deploy!"
