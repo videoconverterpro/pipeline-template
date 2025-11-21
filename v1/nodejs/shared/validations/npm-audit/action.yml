@@ -18,35 +18,63 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: '[ACTION] Run npm audit'
+    - name: '[ACTION] Run dependency audit'
       shell: bash
       run: |
-        echo "🔍 [npm audit] Scanning Node.js dependencies for vulnerabilities..."
+        echo "🔍 [dependency audit] Scanning Node.js dependencies for vulnerabilities..."
         
-        AUDIT_ARGS="--audit-level=${{ inputs.severity-level }}"
-        if [ "${{ inputs.production-only }}" = "true" ]; then
-          AUDIT_ARGS="$AUDIT_ARGS --production"
+        # Detect package manager (pnpm > npm)
+        if [ -f "pnpm-lock.yaml" ]; then
+          PKG_MANAGER="pnpm"
+          echo "📦 Detected pnpm (pnpm-lock.yaml found)"
+        elif [ -f "package-lock.json" ]; then
+          PKG_MANAGER="npm"
+          echo "📦 Detected npm (package-lock.json found)"
+        else
+          echo "❌ No lockfile found (pnpm-lock.yaml or package-lock.json required)"
+          exit 1
         fi
         
-        # Run npm audit and capture exit code
+        # Build audit command based on package manager
+        if [ "$PKG_MANAGER" = "pnpm" ]; then
+          # pnpm audit --audit-level=<level> [--prod]
+          AUDIT_CMD="pnpm audit --audit-level=${{ inputs.severity-level }}"
+          if [ "${{ inputs.production-only }}" = "true" ]; then
+            AUDIT_CMD="$AUDIT_CMD --prod"
+          fi
+        else
+          # npm audit --audit-level=<level> [--production]
+          AUDIT_CMD="npm audit --audit-level=${{ inputs.severity-level }}"
+          if [ "${{ inputs.production-only }}" = "true" ]; then
+            AUDIT_CMD="$AUDIT_CMD --production"
+          fi
+        fi
+        
+        echo "🔧 Running: $AUDIT_CMD"
+        
+        # Run audit and capture exit code
         set +e
-        npm audit $AUDIT_ARGS
+        $AUDIT_CMD
         EXIT_CODE=$?
         set -e
         
         if [ $EXIT_CODE -ne 0 ]; then
-          echo "❌ [npm audit] Vulnerabilities found (exit code: $EXIT_CODE)!"
+          echo "❌ [audit] Vulnerabilities found (exit code: $EXIT_CODE)!"
           
           # Generate JSON report for artifact
-          npm audit --json > npm-audit-report.json 2>&1 || true
+          if [ "$PKG_MANAGER" = "pnpm" ]; then
+            pnpm audit --json > npm-audit-report.json 2>&1 || true
+          else
+            npm audit --json > npm-audit-report.json 2>&1 || true
+          fi
           
           if [ "${{ inputs.continue-on-error }}" = "false" ]; then
             exit $EXIT_CODE
           else
-            echo "⚠️ [npm audit] Continuing despite vulnerabilities (continue-on-error=true)"
+            echo "⚠️ [audit] Continuing despite vulnerabilities (continue-on-error=true)"
           fi
         else
-          echo "✅ [npm audit] No vulnerabilities found"
+          echo "✅ [audit] No vulnerabilities found"
           # Create empty report for consistency
           echo '{"vulnerabilities":{}}' > npm-audit-report.json
         fi
