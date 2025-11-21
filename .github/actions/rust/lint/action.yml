@@ -1,0 +1,13 @@
+name: "✅ Lint Rust"
+description: "Executa clippy e rustfmt"
+
+runs:
+  using: "composite"
+  steps:
+    - name: "Run rustfmt"
+      shell: bash
+      run: cargo fmt --check
+
+    - name: "Run clippy"
+      shell: bash
+      run: cargo clippy -- -D warnings

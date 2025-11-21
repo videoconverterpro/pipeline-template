@@ -1,0 +1,16 @@
+name: "🔧 Setup Rust"
+description: "Setup Rust toolchain com cache"
+
+inputs:
+  rust-version:
+    description: "Versão do Rust (ex: stable, nightly, 1.75)"
+    required: false
+    default: "stable"
+
+runs:
+  using: "composite"
+  steps:
+    - name: "Setup Rust"
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: ${{ inputs.rust-version }}

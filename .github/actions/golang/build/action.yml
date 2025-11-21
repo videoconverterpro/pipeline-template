@@ -1,0 +1,15 @@
+name: "🏗️ Build Go"
+description: "Build aplicação Go"
+
+inputs:
+  output-name:
+    description: "Nome do binário de saída"
+    required: false
+    default: "app"
+
+runs:
+  using: "composite"
+  steps:
+    - name: "Build"
+      shell: bash
+      run: go build -o ${{ inputs.output-name }} .
