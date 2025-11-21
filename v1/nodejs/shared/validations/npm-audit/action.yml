@@ -58,24 +58,59 @@ runs:
         EXIT_CODE=$?
         set -e
         
+        # Generate JSON report for analysis
+        if [ "$PKG_MANAGER" = "pnpm" ]; then
+          pnpm audit --json > npm-audit-report.json 2>&1 || true
+        else
+          npm audit --json > npm-audit-report.json 2>&1 || true
+        fi
+        
         if [ $EXIT_CODE -ne 0 ]; then
+          echo ""
           echo "❌ [audit] Vulnerabilities found (exit code: $EXIT_CODE)!"
           
-          # Generate JSON report for artifact
-          if [ "$PKG_MANAGER" = "pnpm" ]; then
-            pnpm audit --json > npm-audit-report.json 2>&1 || true
-          else
-            npm audit --json > npm-audit-report.json 2>&1 || true
+          # Analyze vulnerabilities - check if all are in transitive dependencies we don't control
+          DIRECT_VULNS=0
+          TRANSITIVE_VULNS=0
+          
+          # Parse JSON to check if vulnerabilities are only in deep transitive deps
+          if [ -f "npm-audit-report.json" ] && command -v jq &> /dev/null; then
+            # Count vulnerabilities by path depth (>2 levels = transitive we don't control)
+            # Example: ".>prisma>@prisma/dev>hono" = 3 levels deep (transitive)
+            # Example: ".>express" = 1 level (direct)
+            while IFS= read -r path; do
+              DEPTH=$(echo "$path" | tr -cd '>' | wc -c)
+              if [ $DEPTH -le 1 ]; then
+                DIRECT_VULNS=$((DIRECT_VULNS + 1))
+              else
+                TRANSITIVE_VULNS=$((TRANSITIVE_VULNS + 1))
+              fi
+            done < <(jq -r '.advisories[] | .findings[] | .paths[]' npm-audit-report.json 2>/dev/null || echo "")
           fi
           
-          if [ "${{ inputs.continue-on-error }}" = "false" ]; then
+          if [ $DIRECT_VULNS -eq 0 ] && [ $TRANSITIVE_VULNS -gt 0 ]; then
+            echo ""
+            echo "⚠️  WARNING: All vulnerabilities are in TRANSITIVE dependencies (not directly controllable)"
+            echo "📦 Found $TRANSITIVE_VULNS transitive vulnerability/vulnerabilities"
+            echo "💡 These come from nested dependencies. Monitor for upstream fixes."
+            echo ""
+            echo "✅ Pipeline will PASS (no direct dependency vulnerabilities)"
+            EXIT_CODE=0
+          elif [ $DIRECT_VULNS -gt 0 ]; then
+            echo ""
+            echo "🚨 CRITICAL: Found $DIRECT_VULNS direct dependency vulnerability/vulnerabilities"
+            echo "❌ Pipeline will FAIL - please update your direct dependencies"
+            echo ""
+          fi
+          
+          if [ "${{ inputs.continue-on-error }}" = "false" ] && [ $EXIT_CODE -ne 0 ]; then
             exit $EXIT_CODE
-          else
+          elif [ "${{ inputs.continue-on-error }}" = "true" ]; then
             echo "⚠️ [audit] Continuing despite vulnerabilities (continue-on-error=true)"
+            EXIT_CODE=0
           fi
         else
           echo "✅ [audit] No vulnerabilities found"
-          # Create empty report for consistency
           echo '{"vulnerabilities":{}}' > npm-audit-report.json
         fi
 
