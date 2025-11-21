@@ -1,0 +1,76 @@
+name: Testes da Aplicação
+description: Executa testes unitários, integração e e2e (genérico para qualquer framework Node.js)
+
+inputs:
+  unit:
+    description: 'Executar testes unitários (pnpm test)'
+    required: false
+    default: 'true'
+  integration:
+    description: 'Executar testes de integração (pnpm test:integration)'
+    required: false
+    default: 'false'
+  e2e:
+    description: 'Executar testes e2e (pnpm test:e2e)'
+    required: false
+    default: 'false'
+  coverage:
+    description: 'Gerar relatório de cobertura (pnpm test:cov)'
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: "[ACTION] Test - Unitários"
+      if: inputs.unit == 'true'
+      shell: bash
+      run: |
+        if grep -q '"test":' package.json; then
+          echo "🧪 Executando testes unitários..."
+          pnpm test
+        else
+          echo "⚠️  Script 'test' não encontrado no package.json"
+        fi
+
+    - name: "[ACTION] Test - Integração"
+      if: inputs.integration == 'true'
+      shell: bash
+      run: |
+        if grep -q '"test:integration":' package.json; then
+          echo "🔗 Executando testes de integração..."
+          pnpm test:integration
+        else
+          echo "⚠️  Script 'test:integration' não encontrado no package.json"
+        fi
+
+    - name: "[ACTION] Test - E2E"
+      if: inputs.e2e == 'true'
+      shell: bash
+      run: |
+        if grep -q '"test:e2e":' package.json; then
+          echo "🌐 Executando testes e2e..."
+          pnpm test:e2e
+        else
+          echo "⚠️  Script 'test:e2e' não encontrado no package.json"
+        fi
+
+    - name: "[ACTION] Test - Coverage"
+      if: inputs.coverage == 'true'
+      shell: bash
+      run: |
+        if grep -q '"test:cov":' package.json; then
+          echo "📊 Gerando relatório de cobertura..."
+          pnpm test:cov
+        else
+          echo "⚠️  Script 'test:cov' não encontrado no package.json"
+        fi
+
+    - name: "[ACTION] Artifact - Upload coverage"
+      if: inputs.coverage == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-${{ github.sha }}
+        path: coverage/
+        retention-days: 7
+        if-no-files-found: ignore

@@ -14,6 +14,7 @@ v1/
 ├── nodejs/24/              # Node.js 24 (genérico para qualquer framework)
 │   ├── setup/              # Setup Node.js + pnpm + cache
 │   ├── lint/               # Prettier + ESLint
+│   ├── test/               # Testes (unit, integration, e2e, coverage)
 │   └── build/              # pnpm build (funciona com NestJS, Express, Next.js, etc)
 ├── golang/                 # Go (futuro)
 │   ├── setup/
@@ -57,7 +58,7 @@ jobs:
         uses: videoconverterpro/pipeline-template/v1/nodejs/24/build@main
 ```
 
-### NestJS com Prisma
+### NestJS Completo (Prisma + Testes)
 
 ```yaml
 name: CI/CD NestJS
@@ -76,7 +77,44 @@ jobs:
       - name: Lint
         uses: videoconverterpro/pipeline-template/v1/nodejs/24/lint@main
         
+      - name: Test - Unitários + Integração + E2E
+        uses: videoconverterpro/pipeline-template/v1/nodejs/24/test@main
+        with:
+          unit: 'true'
+          integration: 'true'
+          e2e: 'true'
+          coverage: 'true'
+        
       - name: Build (Prisma Client é gerado automaticamente no pnpm install)
+        uses: videoconverterpro/pipeline-template/v1/nodejs/24/build@main
+```
+
+### Next.js com Testes
+
+```yaml
+name: CI/CD Next.js
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js + pnpm
+        uses: videoconverterpro/pipeline-template/v1/nodejs/24/setup@main
+        
+      - name: Lint
+        uses: videoconverterpro/pipeline-template/v1/nodejs/24/lint@main
+        
+      - name: Test - Unitários
+        uses: videoconverterpro/pipeline-template/v1/nodejs/24/test@main
+        with:
+          unit: 'true'
+          e2e: 'false'
+        
+      - name: Build Next.js
         uses: videoconverterpro/pipeline-template/v1/nodejs/24/build@main
 ```
 
@@ -124,6 +162,29 @@ jobs:
         
       - name: Build
         uses: videoconverterpro/pipeline-template/v1/rust/build@main
+```
+
+## 📋 Inputs Disponíveis
+
+### `v1/nodejs/24/test`
+
+| Input | Padrão | Descrição |
+|-------|--------|-----------|
+| `unit` | `true` | Executar testes unitários (`pnpm test`) |
+| `integration` | `false` | Executar testes de integração (`pnpm test:integration`) |
+| `e2e` | `false` | Executar testes e2e (`pnpm test:e2e`) |
+| `coverage` | `false` | Gerar relatório de cobertura (`pnpm test:cov`) + upload artifact |
+
+**Exemplo completo:**
+
+```yaml
+- name: Test - Todos os tipos
+  uses: videoconverterpro/pipeline-template/v1/nodejs/24/test@main
+  with:
+    unit: 'true'
+    integration: 'true'
+    e2e: 'true'
+    coverage: 'true'
 ```
 
 ## ✨ Benefícios
