@@ -66,9 +66,6 @@ runs:
         fi
         
         if [ $EXIT_CODE -ne 0 ]; then
-          echo ""
-          echo "❌ [audit] Vulnerabilities found (exit code: $EXIT_CODE)!"
-          
           # Analyze vulnerabilities - check if all are in transitive dependencies we don't control
           DIRECT_VULNS=0
           TRANSITIVE_VULNS=0
