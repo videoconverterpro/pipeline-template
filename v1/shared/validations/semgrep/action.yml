@@ -48,7 +48,9 @@ runs:
       shell: bash
       run: |
         pip install semgrep==1.144.0
-        semgrep --version    - name: '[ACTION] Execute Semgrep'
+        semgrep --version
+
+    - name: '[ACTION] Execute Semgrep'
       shell: bash
       run: |
         set +e
