@@ -17,6 +17,7 @@ v1/
 │   ├── setup/              # Setup Node.js + pnpm + cache
 │   ├── lint/               # Prettier + ESLint
 │   ├── test/               # Testes (unit, integration, e2e, coverage)
+│   ├── gitleaks/           # Secret detection (170+ rules)
 │   └── build/              # pnpm build (funciona com NestJS, Express, Next.js, etc)
 ├── golang/                 # Go (futuro)
 │   ├── setup/
@@ -166,6 +167,7 @@ jobs:
 ## 📚 Documentação Adicional
 
 - **[Testes](docs/TESTING.md)** - Guia completo sobre tipos de teste, inputs e estratégias
+- **[GitLeaks](docs/GITLEAKS.md)** - Detecção de secrets com 170+ regras (AWS, GitHub, Slack, etc)
 - **[CI/CD](docs/CICD.md)** - Nomenclatura, convenções e boas práticas *(futuro)*
 - **[Cache](docs/CACHE.md)** - Otimização de performance com cache *(futuro)*
 

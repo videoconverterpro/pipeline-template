@@ -1,0 +1,213 @@
+name: GitLeaks Secret Scanner
+description: Scans git repository for accidentally committed secrets, credentials, API keys, tokens, and other sensitive information
+
+inputs:
+  gitleaks-version:
+    description: 'GitLeaks Docker image version'
+    required: false
+    default: 'v8.21.2'
+  continue-on-error:
+    description: 'Continue even if secrets are found'
+    required: false
+    default: 'false'
+  show-all-rules:
+    description: 'Show all GitLeaks rules before scanning'
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    # ==========================================================================
+    # STEP 1: Show all GitLeaks rules (optional)
+    # ==========================================================================
+    - name: "[ACTION] List all detection rules"
+      if: inputs.show-all-rules == 'true'
+      shell: bash
+      run: |
+        echo "=========================================="
+        echo "   [GITLEAKS] All Detection Rules"
+        echo "=========================================="
+        echo ""
+        
+        docker run --rm zricethezav/gitleaks:${{ inputs.gitleaks-version }} \
+          version
+        
+        echo ""
+        echo "Default configuration includes 170+ rules for:"
+        echo "  • AWS, Azure, GCP credentials"
+        echo "  • GitHub, GitLab, Bitbucket tokens"
+        echo "  • Slack, Discord, Telegram tokens"
+        echo "  • API keys (Stripe, SendGrid, Twilio, etc.)"
+        echo "  • Database connection strings"
+        echo "  • Private keys and certificates"
+        echo "  • Generic passwords and secrets"
+        echo ""
+        echo "Custom rules defined in .gitleaks.toml (if present)"
+        echo "=========================================="
+    
+    # ==========================================================================
+    # STEP 2: Create GitLeaks configuration (if not exists)
+    # ==========================================================================
+    - name: "[ACTION] Create configuration"
+      shell: bash
+      run: |
+        if [ -f ".gitleaks.toml" ]; then
+          echo "✅ Using existing .gitleaks.toml from repository"
+        else
+          echo "📝 Creating default .gitleaks.toml configuration..."
+          
+          cat > .gitleaks.toml << 'EOF'
+        # GitLeaks Configuration
+        title = "GitLeaks Secret Detection"
+        
+        # Additional custom rules (GitLeaks has 170+ built-in rules)
+        [[rules]]
+        id = "generic-api-key"
+        description = "Generic API Key"
+        regex = '''(?i)(api[_-]?key|apikey)[\s]*[=:]+[\s]*['"]?([a-zA-Z0-9_\-]{32,})['"]?'''
+        
+        [[rules]]
+        id = "generic-secret"
+        description = "Generic Secret"
+        regex = '''(?i)(secret|password|passwd|pwd|token)[\s]*[=:]+[\s]*['"]?([a-zA-Z0-9_\-!@#$%^&*()]{8,})['"]?'''
+        
+        [allowlist]
+        description = "Allowlisted files and patterns"
+        paths = [
+          '''\.git/''',
+          '''node_modules/''',
+          '''vendor/''',
+          '''dist/''',
+          '''build/''',
+          '''\.next/''',
+          '''\.gitleaksignore''',
+          '''\.gitleaks\.toml''',
+        ]
+        EOF
+          
+          echo "✅ Configuration created"
+        fi
+        
+        echo ""
+        echo "Configuration location: $(pwd)/.gitleaks.toml"
+    
+    # ==========================================================================
+    # STEP 3: Run GitLeaks scan
+    # ==========================================================================
+    - name: "[ACTION] Scan for secrets"
+      shell: bash
+      run: |
+        echo "=========================================="
+        echo "   [GITLEAKS] Running Secret Scan"
+        echo "=========================================="
+        echo "Repository: ${{ github.repository }}"
+        echo "Branch: ${{ github.ref_name }}"
+        echo "GitLeaks Version: ${{ inputs.gitleaks-version }}"
+        echo ""
+        
+        # Run GitLeaks in Docker
+        docker run --rm \
+          -v "$(pwd):/code:rw" \
+          --entrypoint /bin/sh \
+          zricethezav/gitleaks:${{ inputs.gitleaks-version }} \
+          -c "git config --global --add safe.directory /code && \
+              gitleaks detect -v \
+                --source /code \
+                --report-format json \
+                --report-path /code/gitleaks-report.json \
+                --config /code/.gitleaks.toml \
+                --no-git \
+                --exit-code 0"
+        
+        echo ""
+        echo "✅ GitLeaks scan completed"
+    
+    # ==========================================================================
+    # STEP 4: Process and display results
+    # ==========================================================================
+    - name: "[ACTION] Process results"
+      shell: bash
+      run: |
+        echo "=========================================="
+        echo "   [GITLEAKS] Processing Results"
+        echo "=========================================="
+        
+        # Check if report exists
+        if [ ! -f "gitleaks-report.json" ]; then
+          echo "✅ No GitLeaks report found - no secrets detected"
+          echo "GITLEAKS_FOUND=0" >> $GITHUB_ENV
+          exit 0
+        fi
+        
+        # Count findings (use jq if available, fallback to grep)
+        if command -v jq &> /dev/null; then
+          FINDINGS_COUNT=$(jq '. | length' gitleaks-report.json)
+        else
+          # Fallback: count objects in JSON array
+          FINDINGS_COUNT=$(grep -o '"RuleID"' gitleaks-report.json | wc -l)
+        fi
+        
+        echo "GITLEAKS_FOUND=$FINDINGS_COUNT" >> $GITHUB_ENV
+        echo ""
+        echo "Findings: $FINDINGS_COUNT"
+        echo ""
+        
+        if [ "$FINDINGS_COUNT" -eq 0 ]; then
+          echo "=========================================="
+          echo "✅ SUCCESS: No secrets found!"
+          echo "=========================================="
+          exit 0
+        else
+          echo "=========================================="
+          echo "⚠️  WARNING: $FINDINGS_COUNT secret(s) found!"
+          echo "=========================================="
+          echo ""
+          echo "📋 FINDINGS SUMMARY"
+          echo "-------------------"
+          
+          # Show findings (with jq for pretty format, or raw JSON)
+          if command -v jq &> /dev/null; then
+            jq -r '.[] | "• File: \(.File) (Line \(.StartLine))\n  Rule: \(.RuleID)\n  Description: \(.Description)\n  Commit: \(.Commit)\n"' \
+              gitleaks-report.json | head -n 100
+          else
+            cat gitleaks-report.json | head -n 50
+          fi
+          
+          echo ""
+          echo "=========================================="
+          echo ""
+          echo "🔧 HOW TO RESOLVE"
+          echo "-----------------"
+          echo "1. ROTATE the leaked secrets immediately"
+          echo "2. Create .gitleaksignore in repository root"
+          echo "3. Add fingerprints from report to ignore file"
+          echo "4. Re-run the pipeline"
+          echo ""
+          echo "📚 DOCUMENTATION"
+          echo "----------------"
+          echo "• GitLeaks: https://github.com/gitleaks/gitleaks"
+          echo "• Ignore format: https://github.com/gitleaks/gitleaks#gitleaksignore"
+          echo ""
+          
+          # Exit based on continue-on-error setting
+          if [ "${{ inputs.continue-on-error }}" == "true" ]; then
+            echo "⚠️  Continuing pipeline (continue-on-error=true)"
+            exit 0
+          else
+            echo "❌ Failing pipeline (continue-on-error=false)"
+            exit 1
+          fi
+        fi
+    
+    # ==========================================================================
+    # STEP 5: Upload report as artifact
+    # ==========================================================================
+    - name: "[ACTION] Upload report"
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: gitleaks-report-${{ github.sha }}
+        path: gitleaks-report.json
+        retention-days: 30
+        if-no-files-found: ignore

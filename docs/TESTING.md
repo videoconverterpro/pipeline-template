@@ -9,24 +9,28 @@ A action `v1/nodejs/24/test` é **framework-agnostic** e suporta múltiplos tipo
 ## 🎯 Tipos de Teste Suportados
 
 ### 1. Testes Unitários (`unit`)
+
 - **Script**: `pnpm test`
 - **Propósito**: Testar funções, classes e métodos isoladamente
 - **Velocidade**: ⚡ Rápido (milissegundos)
 - **Exemplos**: Jest, Vitest, Mocha
 
 ### 2. Testes de Integração (`integration`)
+
 - **Script**: `pnpm test:integration`
 - **Propósito**: Testar comunicação entre módulos/serviços
 - **Velocidade**: 🟡 Moderado (segundos)
 - **Exemplos**: Testes de banco de dados, APIs externas
 
 ### 3. Testes E2E (`e2e`)
+
 - **Script**: `pnpm test:e2e`
 - **Propósito**: Testar fluxo completo da aplicação
 - **Velocidade**: 🐢 Lento (minutos)
 - **Exemplos**: Supertest (NestJS), Playwright (Next.js), Cypress
 
 ### 4. Cobertura de Código (`coverage`)
+
 - **Script**: `pnpm test:cov`
 - **Propósito**: Gerar relatório de cobertura de testes
 - **Output**: `coverage/` (automaticamente enviado como artifact)
@@ -114,6 +118,7 @@ A action `v1/nodejs/24/test` é **framework-agnostic** e suporta múltiplos tipo
 ## 🎭 Frameworks Compatíveis
 
 ### NestJS
+
 ```json
 {
   "scripts": {
@@ -125,6 +130,7 @@ A action `v1/nodejs/24/test` é **framework-agnostic** e suporta múltiplos tipo
 ```
 
 ### Next.js
+
 ```json
 {
   "scripts": {
@@ -136,6 +142,7 @@ A action `v1/nodejs/24/test` é **framework-agnostic** e suporta múltiplos tipo
 ```
 
 ### Express/Fastify
+
 ```json
 {
   "scripts": {
@@ -158,6 +165,7 @@ A action `v1/nodejs/24/test` é **framework-agnostic** e suporta múltiplos tipo
 ## 🚀 Estratégias Recomendadas
 
 ### Para Branches de Feature
+
 ```yaml
 - uses: videoconverterpro/pipeline-template/v1/nodejs/24/test@main
   with:
@@ -166,9 +174,11 @@ A action `v1/nodejs/24/test` é **framework-agnostic** e suporta múltiplos tipo
     e2e: 'false'
     coverage: 'false'
 ```
+
 **Motivo**: Feedback rápido durante desenvolvimento
 
 ### Para Pull Requests
+
 ```yaml
 - uses: videoconverterpro/pipeline-template/v1/nodejs/24/test@main
   with:
@@ -177,9 +187,11 @@ A action `v1/nodejs/24/test` é **framework-agnostic** e suporta múltiplos tipo
     e2e: 'true'
     coverage: 'true'
 ```
+
 **Motivo**: Validação completa antes do merge
 
 ### Para Branch Main/Production
+
 ```yaml
 - uses: videoconverterpro/pipeline-template/v1/nodejs/24/test@main
   with:
@@ -188,22 +200,27 @@ A action `v1/nodejs/24/test` é **framework-agnostic** e suporta múltiplos tipo
     e2e: 'true'
     coverage: 'false'
 ```
+
 **Motivo**: Garantir qualidade sem overhead de coverage
 
 ## 🔍 Troubleshooting
 
 ### Erro: "Script 'test:e2e' não encontrado"
+
 **Causa**: O script não existe no `package.json`  
 **Solução**: Adicione o script ou ajuste o input para `e2e: 'false'`
 
 ### Testes falhando no CI mas passando localmente
+
 **Possíveis causas:**
+
 - Dependências de banco de dados não disponíveis
 - Variáveis de ambiente faltando
 - Timeouts muito curtos
 - Cache de `node_modules` corrompido
 
 **Soluções:**
+
 ```yaml
 # Adicionar serviços necessários
 services:
@@ -219,8 +236,10 @@ env:
 ```
 
 ### Coverage report não sendo gerado
+
 **Causa**: Configuração de coverage faltando  
 **Solução**: Configure no `jest.config.js`:
+
 ```js
 module.exports = {
   coverageDirectory: 'coverage',
@@ -234,6 +253,7 @@ module.exports = {
 ## 📦 Artifacts
 
 Quando `coverage: 'true'`, um artifact é criado:
+
 - **Nome**: `coverage-<sha>`
 - **Conteúdo**: Pasta `coverage/` completa
 - **Retenção**: 7 dias
@@ -242,6 +262,7 @@ Quando `coverage: 'true'`, um artifact é criado:
 ## 🔗 Integração com Ferramentas Externas
 
 ### Codecov
+
 ```yaml
 - uses: videoconverterpro/pipeline-template/v1/nodejs/24/test@main
   with:
@@ -253,6 +274,7 @@ Quando `coverage: 'true'`, um artifact é criado:
 ```
 
 ### SonarQube
+
 ```yaml
 - uses: videoconverterpro/pipeline-template/v1/nodejs/24/test@main
   with:
