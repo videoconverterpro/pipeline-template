@@ -10,25 +10,32 @@ Repositório centralizado de **composite actions** para pipelines CI/CD em múlt
 ## 📁 Estrutura
 
 ```
-.github/actions/
-├── nodejs/       # Node.js / TypeScript / NestJS / Express
-│   ├── setup/    # Setup Node.js + pnpm + cache
-│   ├── lint/     # Prettier + ESLint
-│   └── build/    # Build NestJS/Express
-├── golang/       # Go / Gin / Echo
-│   ├── setup/    # Setup Go + cache
-│   ├── lint/     # golangci-lint
-│   └── build/    # go build
-├── rust/         # Rust / Actix / Rocket
-│   ├── setup/    # Setup Rust toolchain
-│   ├── lint/     # clippy + rustfmt
-│   └── build/    # cargo build
-└── shared/       # Actions compartilhadas (futuro)
+v1/
+├── nodejs/24/              # Node.js 24 (genérico para qualquer framework)
+│   ├── setup/              # Setup Node.js + pnpm + cache
+│   ├── lint/               # Prettier + ESLint (framework-agnostic)
+│   └── nestjs/             # Actions específicas do NestJS
+│       ├── build/          # Build com Prisma + validações
+│       └── test/           # Testes unitários + e2e + coverage
+├── golang/                 # Go (futuro)
+│   ├── setup/
+│   ├── lint/
+│   └── build/
+└── rust/                   # Rust (futuro)
+    ├── setup/
+    ├── lint/
+    └── build/
 ```
+
+### 🧩 Filosofia da Organização
+
+- **Genérico primeiro**: Actions em `v1/nodejs/24/` funcionam para **qualquer projeto Node.js**
+- **Específico quando necessário**: Subpastas por framework (`nestjs/`, `express/`, `nextjs/`) apenas para steps únicos
+- **Versionamento semântico**: `v1/` permite breaking changes no futuro (`v2/` sem quebrar projetos antigos)
 
 ## 🎯 Como Usar
 
-### Node.js / NestJS / Express
+### Node.js Genérico (Express, Fastify, qualquer framework)
 
 ```yaml
 name: CI/CD
@@ -42,42 +49,43 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Setup Node.js + pnpm
-        uses: videoconverterpro/pipeline-template/.github/actions/nodejs/setup@main
+        uses: videoconverterpro/pipeline-template/v1/nodejs/24/setup@main
         
       - name: Lint (Prettier + ESLint)
-        uses: videoconverterpro/pipeline-template/.github/actions/nodejs/lint@main
+        uses: videoconverterpro/pipeline-template/v1/nodejs/24/lint@main
         
-      - name: Build
-        uses: videoconverterpro/pipeline-template/.github/actions/nodejs/build@main
+      - name: Build genérico
+        run: pnpm build
 ```
 
-### Golang
+### NestJS Completo (com Prisma + testes)
 
 ```yaml
+name: CI/CD NestJS
+
+on: [push]
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       
-      - name: Setup Go
-        uses: videoconverterpro/pipeline-template/.github/actions/golang/setup@main
-        with:
-          go-version: '1.22'
+      - name: Setup Node.js + pnpm
+        uses: videoconverterpro/pipeline-template/v1/nodejs/24/setup@main
+        
+      - name: Lint (Prettier + ESLint)
+        uses: videoconverterpro/pipeline-template/v1/nodejs/24/lint@main
+        
+      - name: Build NestJS com Prisma
+        uses: videoconverterpro/pipeline-template/v1/nodejs/24/nestjs/build@main
       
-      - name: Lint (golangci-lint)
-        uses: videoconverterpro/pipeline-template/.github/actions/golang/lint@main
-      
-      - name: Build
-        uses: videoconverterpro/pipeline-template/.github/actions/golang/build@main
+      - name: Testes (unitários + e2e)
+        uses: videoconverterpro/pipeline-template/v1/nodejs/24/nestjs/test@main
         with:
-          output-name: 'myapp'
+          run-e2e: 'true'
+          coverage: 'true'
 ```
-
-### Rust
-
-```yaml
-jobs:
   build:
     runs-on: ubuntu-latest
     steps:
