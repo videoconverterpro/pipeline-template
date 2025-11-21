@@ -31,10 +31,9 @@ runs:
         echo "   Scan path: ${{ inputs.scan-path }}"
       
     - name: '[ACTION] Execute Semgrep'
-      uses: returntocorp/semgrep-action@v1
+      uses: semgrep/semgrep-action@v1
       with:
         config: ${{ inputs.config }}
-        generateSarif: true
       continue-on-error: ${{ inputs.continue-on-error == 'true' }}
       env:
         SEMGREP_RULES: ${{ inputs.config }}

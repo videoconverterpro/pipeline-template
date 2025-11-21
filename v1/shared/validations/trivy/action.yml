@@ -49,7 +49,6 @@ runs:
         format: ${{ inputs.format }}
         output: 'trivy-results.sarif'
         skip-dirs: ${{ inputs.skip-dirs }}
-        trivyignores: '.trivyignore'
       env:
         TRIVY_TIMEOUT: '10m'
 
