@@ -21,6 +21,15 @@
     - [OWASP Dependency-Check](#owasp-dependency-check)
     - [OSV-Scanner](#osv-scanner)
     - [Checkov](#checkov)
+    - [TruffleHog](#trufflehog)
+    - [Bearer CLI](#bearer-cli)
+    - [Hadolint](#hadolint)
+    - [Syft + Grype](#syft--grype)
+    - [Detect-Secrets](#detect-secrets)
+    - [CodeQL](#codeql)
+    - [Safety](#safety)
+    - [Snyk Code (Limited Free)](#snyk-code-limited-free)
+    - [OWASP ZAP](#owasp-zap)
   - [Já Implementado](#já-implementado)
     - [GitLeaks](#gitleaks)
   - [Comparação com Ferramentas Pagas](#comparação-com-ferramentas-pagas)
@@ -41,6 +50,9 @@
     - [Implementação Imediata (Tier 1)](#implementação-imediata-tier-1)
     - [Implementação Próxima Semana (Tier 2)](#implementação-próxima-semana-tier-2)
   - [Referências](#referências)
+    - [Tier 1 (Implementado)](#tier-1-implementado)
+    - [Tier 2 (Implementado)](#tier-2-implementado)
+    - [Tier 3 (Opcional/Futuro)](#tier-3-opcionalfuturo-1)
   - [Conclusão](#conclusão)
 
 ---
@@ -796,6 +808,1099 @@ runs:
 
 ---
 
+### TruffleHog
+
+**Função:** Secret detection com Machine Learning (alternativa/complemento ao GitLeaks)
+
+**Custo:** `$0` (open-source)
+
+**Cobertura:**
+
+- **700+ detectores** (vs 170+ do GitLeaks)
+- **Machine Learning**: Menos falsos positivos que regex puro
+- **Verificação de validade**: Testa se secrets estão ativos (faz requests reais)
+- Escaneia: Git history, filesystem, APIs (GitHub, GitLab, S3, Docker registries)
+- Suporta: AWS, Azure, GCP, GitHub, Slack, Stripe, SendGrid, Mailgun, Twilio, etc.
+
+**Tempo de execução:** `+1-2min` no pipeline (mais lento que GitLeaks devido à verificação)
+
+**Limitações:**
+
+- Mais lento que GitLeaks (verifica validade de cada secret)
+- Precisa de acesso à rede (para verificar secrets)
+- Alguns serviços podem rate-limit as verificações
+
+**Vantagem sobre GitLeaks:**
+
+- **Verificação ativa**: Informa se secret está válido/ativo
+- **ML-based**: Melhor detecção de padrões não óbvios
+- **Menos falsos positivos**: ML filtra patterns que parecem secrets mas não são
+
+**Implementação:**
+
+```yaml
+# pipeline-template/v1/shared/validations/trufflehog/action.yml
+name: 'TruffleHog - ML-based Secret Detection'
+description: 'Scan for secrets with machine learning and active verification'
+
+inputs:
+  scan-type:
+    description: 'Type of scan (git, filesystem, github)'
+    required: false
+    default: 'git'
+  verify:
+    description: 'Verify if secrets are active'
+    required: false
+    default: 'true'
+  continue-on-error:
+    description: 'Continue pipeline even if secrets found'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: '[ACTION] Install TruffleHog'
+      shell: bash
+      run: |
+        echo "📦 [TruffleHog] Installing..."
+        curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
+        trufflehog --version
+
+    - name: '[ACTION] Run TruffleHog scan'
+      shell: bash
+      run: |
+        echo "🔍 [TruffleHog] Scanning for secrets with ML verification..."
+        
+        VERIFY_FLAG=""
+        if [[ "${{ inputs.verify }}" == "true" ]]; then
+          VERIFY_FLAG="--verify"
+          echo "✅ Secret verification enabled (will test if secrets are active)"
+        fi
+        
+        case "${{ inputs.scan-type }}" in
+          git)
+            trufflehog git file://. $VERIFY_FLAG --json > trufflehog-results.json
+            ;;
+          filesystem)
+            trufflehog filesystem . $VERIFY_FLAG --json > trufflehog-results.json
+            ;;
+          github)
+            trufflehog github --org=${{ github.repository_owner }} --repo=${{ github.event.repository.name }} $VERIFY_FLAG --json > trufflehog-results.json
+            ;;
+        esac
+        
+        FINDINGS=$(jq '. | length' trufflehog-results.json)
+        echo "TRUFFLEHOG_FINDINGS=$FINDINGS" >> $GITHUB_ENV
+        
+        if [[ $FINDINGS -gt 0 ]]; then
+          echo "⚠️ Found $FINDINGS secrets!"
+          echo "📄 Details in artifact: trufflehog-results.json"
+          
+          # Show verified secrets (high priority)
+          VERIFIED=$(jq '[.[] | select(.Verified == true)] | length' trufflehog-results.json)
+          echo "🚨 VERIFIED ACTIVE SECRETS: $VERIFIED"
+          
+          if [[ $VERIFIED -gt 0 ]]; then
+            echo "❌ CRITICAL: Found verified (active) secrets! Rotate immediately!"
+            jq -r '.[] | select(.Verified == true) | "\(.DetectorType): \(.Raw) in \(.SourceMetadata.Data.Filesystem.file // .SourceMetadata.Data.Git.file)"' trufflehog-results.json
+          fi
+          
+          if [[ "${{ inputs.continue-on-error }}" != "true" ]]; then
+            exit 1
+          fi
+        else
+          echo "✅ No secrets found"
+        fi
+
+    - name: '[ACTION] Upload TruffleHog report'
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: trufflehog-report-${{ github.sha }}
+        path: trufflehog-results.json
+        retention-days: 30
+        if-no-files-found: ignore
+```
+
+**Uso no workflow:**
+
+```yaml
+- name: '[STEP] TruffleHog - ML Secret Detection'
+  uses: ./pipeline-template/v1/shared/validations/trufflehog
+  with:
+    scan-type: 'git'
+    verify: 'true'  # Verifica se secrets estão ativos
+```
+
+**Combo GitLeaks + TruffleHog (Recomendado):**
+
+```yaml
+# Rodando ambos em paralelo para máxima cobertura
+- name: '[STEP] GitLeaks - Fast Regex Scan'
+  uses: ./pipeline-template/v1/shared/validations/gitleaks
+  continue-on-error: true  # Não bloqueia TruffleHog
+
+- name: '[STEP] TruffleHog - ML + Verification'
+  uses: ./pipeline-template/v1/shared/validations/trufflehog
+  with:
+    verify: 'true'
+```
+
+**Resultado:** GitLeaks encontra 85% dos secrets rapidamente, TruffleHog valida + encontra os 15% restantes.
+
+---
+
+### Bearer CLI
+
+**Função:** Data Security + Privacy Compliance (GDPR, LGPD, CCPA)
+
+**Custo:** `$0` (open-source)
+
+**Cobertura:**
+
+- **Data leaks**: Detecta PII (emails, CPF, credit cards) em logs, responses, debug code
+- **Privacy compliance**: GDPR, LGPD, CCPA, HIPAA violations
+- **SAST**: SQL injection, XSS, insecure crypto, hardcoded secrets
+- **Data flow**: Rastreia como PII flui pelo código (ex: `user.email` → `console.log()`)
+- Suporta: JavaScript, TypeScript, Ruby, Python, PHP, Java, Go
+
+**Tempo de execução:** `+1-2min` no pipeline
+
+**Limitações:**
+
+- Focado em privacy (não substitui Semgrep para SAST geral)
+- Alguns falsos positivos em test fixtures
+- Relatórios menos detalhados que SonarQube
+
+**Vantagem única:** **Único scanner focado em privacy compliance** - detecta vazamentos de dados pessoais.
+
+**Implementação:**
+
+```yaml
+# pipeline-template/v1/shared/validations/bearer/action.yml
+name: 'Bearer CLI - Data Security & Privacy'
+description: 'Scan for data leaks and privacy compliance issues (GDPR, LGPD)'
+
+inputs:
+  severity:
+    description: 'Minimum severity (low, medium, high, critical)'
+    required: false
+    default: 'high'
+  report-format:
+    description: 'Report format (sarif, json, html)'
+    required: false
+    default: 'sarif'
+  continue-on-error:
+    description: 'Continue pipeline even if issues found'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: '[ACTION] Install Bearer CLI'
+      shell: bash
+      run: |
+        echo "📦 [Bearer] Installing..."
+        curl -sfL https://raw.githubusercontent.com/Bearer/bearer/main/contrib/install.sh | sh
+        sudo mv ./bearer /usr/local/bin/
+        bearer version
+
+    - name: '[ACTION] Run Bearer scan'
+      shell: bash
+      run: |
+        echo "🔍 [Bearer] Scanning for data leaks and privacy issues..."
+        
+        bearer scan . \
+          --format=${{ inputs.report-format }} \
+          --output=bearer-results.${{ inputs.report-format }} \
+          --severity=${{ inputs.severity }} \
+          --quiet
+        
+        # Parse results
+        if [[ "${{ inputs.report-format }}" == "sarif" ]]; then
+          FINDINGS=$(jq '[.runs[].results[]] | length' bearer-results.sarif)
+        else
+          FINDINGS=$(jq '.stats.total' bearer-results.json)
+        fi
+        
+        echo "BEARER_FINDINGS=$FINDINGS" >> $GITHUB_ENV
+        
+        if [[ $FINDINGS -gt 0 ]]; then
+          echo "⚠️ Found $FINDINGS privacy/security issues!"
+          echo "📄 Details in artifact: bearer-results.${{ inputs.report-format }}"
+          
+          # Show summary by category
+          echo "📊 Summary:"
+          bearer scan . --format=json --quiet | jq -r '.stats'
+          
+          if [[ "${{ inputs.continue-on-error }}" != "true" ]]; then
+            exit 1
+          fi
+        else
+          echo "✅ No privacy/security issues found"
+        fi
+
+    - name: '[ACTION] Upload Bearer report'
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: bearer-report-${{ github.sha }}
+        path: bearer-results.*
+        retention-days: 30
+        if-no-files-found: ignore
+```
+
+**Uso no workflow:**
+
+```yaml
+- name: '[STEP] Bearer - Privacy & Data Security'
+  uses: ./pipeline-template/v1/shared/validations/bearer
+  with:
+    severity: 'high'
+    report-format: 'sarif'
+```
+
+**Exemplo de detecções:**
+
+```typescript
+// ❌ Detectado por Bearer
+console.log("User email:", user.email);  // PII leak in logs
+res.json({ cpf: person.cpf });            // CPF in API response
+logger.debug(creditCard);                 // Credit card in debug logs
+
+// ✅ Bearer sugere:
+console.log("User email:", maskEmail(user.email));
+res.json({ cpf: maskCPF(person.cpf) });
+logger.debug("[REDACTED]");
+```
+
+---
+
+### Hadolint
+
+**Função:** Dockerfile linting (best practices + security)
+
+**Custo:** `$0` (open-source)
+
+**Cobertura:**
+
+- **Best practices**: Dockerfile optimization (layer caching, multi-stage builds)
+- **Security**: USER root, COPY without .dockerignore, insecure base images
+- **Shell validation**: Integra ShellCheck para validar scripts bash no RUN
+- Detecta: apt-get without cleanup, missing --no-cache, hardcoded versions, etc.
+
+**Tempo de execução:** `+10-20s` no pipeline
+
+**Limitações:**
+
+- Apenas Dockerfile (não escaneia imagens buildadas)
+- Overlap parcial com Trivy IaC (mas Hadolint é mais específico)
+
+**Vantagem:** Especializado em Dockerfile - mais regras que Trivy IaC.
+
+**Implementação:**
+
+```yaml
+# pipeline-template/v1/shared/validations/hadolint/action.yml
+name: 'Hadolint - Dockerfile Linting'
+description: 'Lint Dockerfile for best practices and security issues'
+
+inputs:
+  dockerfile-path:
+    description: 'Path to Dockerfile'
+    required: false
+    default: 'Dockerfile'
+  severity:
+    description: 'Minimum severity (info, warning, error)'
+    required: false
+    default: 'warning'
+  continue-on-error:
+    description: 'Continue pipeline even if issues found'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: '[ACTION] Run Hadolint'
+      shell: bash
+      run: |
+        echo "🔍 [Hadolint] Linting Dockerfile..."
+        
+        docker run --rm -i \
+          -v "$(pwd)":/workspace \
+          -w /workspace \
+          hadolint/hadolint:latest \
+          hadolint \
+          --format json \
+          --no-fail \
+          ${{ inputs.dockerfile-path }} > hadolint-results.json
+        
+        # Filter by severity
+        FINDINGS=$(jq --arg severity "${{ inputs.severity }}" '
+          [.[] | select(
+            (.level == "error") or
+            (.level == "warning" and ($severity == "warning" or $severity == "info")) or
+            (.level == "info" and $severity == "info")
+          )] | length
+        ' hadolint-results.json)
+        
+        echo "HADOLINT_FINDINGS=$FINDINGS" >> $GITHUB_ENV
+        
+        if [[ $FINDINGS -gt 0 ]]; then
+          echo "⚠️ Found $FINDINGS Dockerfile issues!"
+          
+          # Show summary
+          echo "📊 Issues by severity:"
+          jq -r 'group_by(.level) | map({level: .[0].level, count: length}) | .[]' hadolint-results.json
+          
+          # Show details
+          echo "📋 Details:"
+          jq -r '.[] | "\(.level | ascii_upcase): \(.message) (\(.code)) at line \(.line)"' hadolint-results.json
+          
+          if [[ "${{ inputs.continue-on-error }}" != "true" ]]; then
+            exit 1
+          fi
+        else
+          echo "✅ No Dockerfile issues found"
+        fi
+
+    - name: '[ACTION] Upload Hadolint report'
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: hadolint-report-${{ github.sha }}
+        path: hadolint-results.json
+        retention-days: 30
+        if-no-files-found: ignore
+```
+
+**Uso no workflow:**
+
+```yaml
+- name: '[STEP] Hadolint - Dockerfile Lint'
+  uses: ./pipeline-template/v1/shared/validations/hadolint
+  with:
+    dockerfile-path: 'Dockerfile'
+    severity: 'warning'
+```
+
+**Exemplo de detecções:**
+
+```dockerfile
+# ❌ Detectado por Hadolint
+FROM node:latest                    # DL3007: Use versão específica
+RUN apt-get update && apt-get install curl  # DL3008: Pin versions
+COPY . .                            # DL3045: Use .dockerignore
+USER root                           # DL3002: Não use root
+
+# ✅ Hadolint recomenda:
+FROM node:20-alpine
+RUN apt-get update && apt-get install -y curl=7.68.0-1 && rm -rf /var/lib/apt/lists/*
+COPY --chown=node:node . .
+USER node
+```
+
+---
+
+### Syft + Grype
+
+**Função:** SBOM generation + vulnerability scanning (alternativa ao Trivy)
+
+**Custo:** `$0` (open-source da Anchore)
+
+**Cobertura:**
+
+- **Syft**: Gera SBOM (Software Bill of Materials) em formato SPDX, CycloneDX, Syft JSON
+- **Grype**: Escaneia vulnerabilidades usando SBOM (vs databases: NVD, GitHub, etc.)
+- Suporta: Container images, filesystems, archives, language packages
+- Detecta: OS packages, language libraries (npm, pip, gem, go.mod, etc.)
+
+**Tempo de execução:** `+1-2min` no pipeline
+
+**Limitações:**
+
+- Dois comandos separados (Syft → Grype)
+- Overlap com Trivy (ambos fazem vulnerability scan)
+- SBOM generation adiciona overhead
+
+**Vantagem sobre Trivy:**
+
+- **SBOM completo**: Útil para compliance/auditoria (ISO 27001, SOC 2)
+- **Formatos padrão**: SPDX 2.3, CycloneDX 1.4 (interoperável com outras ferramentas)
+- **Database próprio**: Não depende de NVD (menos downtime)
+
+**Implementação:**
+
+```yaml
+# pipeline-template/v1/shared/validations/syft-grype/action.yml
+name: 'Syft + Grype - SBOM & Vulnerability Scan'
+description: 'Generate SBOM and scan vulnerabilities using Anchore tools'
+
+inputs:
+  scan-target:
+    description: 'Target to scan (dir:., image:myapp:latest)'
+    required: false
+    default: 'dir:.'
+  sbom-format:
+    description: 'SBOM format (spdx-json, cyclonedx-json, syft-json)'
+    required: false
+    default: 'spdx-json'
+  severity:
+    description: 'Minimum severity (negligible, low, medium, high, critical)'
+    required: false
+    default: 'high'
+  continue-on-error:
+    description: 'Continue pipeline even if vulnerabilities found'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: '[ACTION] Install Syft'
+      shell: bash
+      run: |
+        echo "📦 [Syft] Installing..."
+        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+        syft version
+
+    - name: '[ACTION] Install Grype'
+      shell: bash
+      run: |
+        echo "📦 [Grype] Installing..."
+        curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+        grype version
+
+    - name: '[ACTION] Generate SBOM with Syft'
+      shell: bash
+      run: |
+        echo "📄 [Syft] Generating SBOM..."
+        syft ${{ inputs.scan-target }} \
+          -o ${{ inputs.sbom-format }} \
+          --file sbom.${{ inputs.sbom-format }}
+        
+        PACKAGES=$(jq '[.packages // .components] | length' sbom.${{ inputs.sbom-format }})
+        echo "✅ SBOM generated: $PACKAGES packages found"
+
+    - name: '[ACTION] Scan vulnerabilities with Grype'
+      shell: bash
+      run: |
+        echo "🔍 [Grype] Scanning vulnerabilities from SBOM..."
+        
+        grype sbom:sbom.${{ inputs.sbom-format }} \
+          --fail-on ${{ inputs.severity }} \
+          -o json \
+          --file grype-results.json
+        
+        VULNS=$(jq '[.matches[]] | length' grype-results.json)
+        echo "GRYPE_VULNS=$VULNS" >> $GITHUB_ENV
+        
+        if [[ $VULNS -gt 0 ]]; then
+          echo "⚠️ Found $VULNS vulnerabilities!"
+          
+          # Summary by severity
+          echo "📊 Summary:"
+          jq -r '[.matches[].vulnerability.severity] | group_by(.) | map({severity: .[0], count: length}) | .[]' grype-results.json
+          
+          if [[ "${{ inputs.continue-on-error }}" != "true" ]]; then
+            exit 1
+          fi
+        else
+          echo "✅ No vulnerabilities found"
+        fi
+
+    - name: '[ACTION] Upload SBOM'
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: sbom-${{ github.sha }}
+        path: sbom.${{ inputs.sbom-format }}
+        retention-days: 90  # SBOM deve ser mantido por mais tempo
+        if-no-files-found: ignore
+
+    - name: '[ACTION] Upload Grype report'
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: grype-report-${{ github.sha }}
+        path: grype-results.json
+        retention-days: 30
+        if-no-files-found: ignore
+```
+
+**Uso no workflow:**
+
+```yaml
+# Filesystem scan
+- name: '[STEP] Syft + Grype - SBOM & Vuln Scan'
+  uses: ./pipeline-template/v1/shared/validations/syft-grype
+  with:
+    scan-target: 'dir:.'
+    sbom-format: 'spdx-json'
+    severity: 'high'
+
+# Container scan
+- name: '[STEP] Build Docker image'
+  run: docker build -t myapp:${{ github.sha }} .
+
+- name: '[STEP] Syft + Grype - Container Scan'
+  uses: ./pipeline-template/v1/shared/validations/syft-grype
+  with:
+    scan-target: 'image:myapp:${{ github.sha }}'
+    sbom-format: 'cyclonedx-json'
+```
+
+---
+
+### Detect-Secrets
+
+**Função:** Secret detection com baseline approach (alternativa leve ao GitLeaks)
+
+**Custo:** `$0` (open-source da Yelp)
+
+**Cobertura:**
+
+- **Baseline tracking**: Armazena secrets conhecidos em `.secrets.baseline`
+- **Incremental scan**: Apenas novos commits (não re-escaneia histórico)
+- **Plugins customizáveis**: Regex, entropy, keywords, AWS, Azure, etc.
+- Mais leve e rápido que GitLeaks (ideal para CI/CD)
+
+**Tempo de execução:** `+10-15s` no pipeline (vs +30s do GitLeaks)
+
+**Limitações:**
+
+- Menos regras padrão que GitLeaks (170+) ou TruffleHog (700+)
+- Precisa manter `.secrets.baseline` atualizado
+- Sem verificação de validade (diferente do TruffleHog)
+
+**Vantagem:** Baseline approach evita re-escanear histórico antigo - ideal para repos grandes.
+
+**Implementação:**
+
+```yaml
+# pipeline-template/v1/shared/validations/detect-secrets/action.yml
+name: 'Detect-Secrets - Baseline Secret Detection'
+description: 'Scan for secrets using baseline approach (incremental)'
+
+inputs:
+  baseline-file:
+    description: 'Path to baseline file'
+    required: false
+    default: '.secrets.baseline'
+  update-baseline:
+    description: 'Update baseline with new findings'
+    required: false
+    default: 'false'
+  continue-on-error:
+    description: 'Continue pipeline even if new secrets found'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: '[ACTION] Install detect-secrets'
+      shell: bash
+      run: |
+        echo "📦 [detect-secrets] Installing..."
+        pip install detect-secrets
+        detect-secrets --version
+
+    - name: '[ACTION] Create baseline if not exists'
+      shell: bash
+      run: |
+        if [[ ! -f "${{ inputs.baseline-file }}" ]]; then
+          echo "📄 Creating new baseline..."
+          detect-secrets scan > ${{ inputs.baseline-file }}
+        fi
+
+    - name: '[ACTION] Scan for new secrets'
+      shell: bash
+      run: |
+        echo "🔍 [detect-secrets] Scanning for NEW secrets..."
+        
+        # Scan and compare with baseline
+        detect-secrets scan > .secrets.new
+        
+        # Check for new secrets
+        detect-secrets audit --diff ${{ inputs.baseline-file }} .secrets.new > detect-secrets-diff.json
+        
+        NEW_SECRETS=$(jq '.results | length' detect-secrets-diff.json)
+        echo "DETECT_SECRETS_NEW=$NEW_SECRETS" >> $GITHUB_ENV
+        
+        if [[ $NEW_SECRETS -gt 0 ]]; then
+          echo "⚠️ Found $NEW_SECRETS NEW secrets!"
+          echo "📋 New secrets:"
+          jq -r '.results[] | "\(.filename):\(.line_number) - \(.type)"' detect-secrets-diff.json
+          
+          if [[ "${{ inputs.update-baseline }}" == "true" ]]; then
+            echo "✏️ Updating baseline..."
+            mv .secrets.new ${{ inputs.baseline-file }}
+            echo "⚠️ Baseline updated - commit the changes!"
+          fi
+          
+          if [[ "${{ inputs.continue-on-error }}" != "true" ]]; then
+            exit 1
+          fi
+        else
+          echo "✅ No new secrets found"
+        fi
+
+    - name: '[ACTION] Upload report'
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: detect-secrets-report-${{ github.sha }}
+        path: |
+          detect-secrets-diff.json
+          .secrets.baseline
+        retention-days: 30
+        if-no-files-found: ignore
+```
+
+**Uso no workflow:**
+
+```yaml
+- name: '[STEP] Detect-Secrets - Incremental Scan'
+  uses: ./pipeline-template/v1/shared/validations/detect-secrets
+  with:
+    baseline-file: '.secrets.baseline'
+    update-baseline: 'false'  # true = atualiza baseline automaticamente
+```
+
+**Workflow recomendado:**
+
+1. **Primeira execução**: `update-baseline: 'true'` (cria baseline inicial)
+2. **CI/CD normal**: `update-baseline: 'false'` (detecta novos secrets)
+3. **Após rotacionar secret**: `update-baseline: 'true'` + commit baseline
+
+---
+
+### CodeQL
+
+**Função:** SAST avançado (análise de fluxo de dados completa)
+
+**Custo:** `$0` (repos públicos) | **$49/mês/dev** (repos privados com GitHub Advanced Security)
+
+**Cobertura:**
+
+- **Dataflow analysis**: Rastreia dados do input até sink (ex: `req.body` → SQL query)
+- **2000+ queries** para JavaScript/TypeScript
+- **Custom queries**: QL language (Datalog-like) para criar regras próprias
+- **Integração nativa**: GitHub Security tab, PR annotations
+- Suporta: JavaScript, TypeScript, Python, Java, C/C++, C#, Go, Ruby
+
+**Tempo de execução:** `+3-5min` no pipeline
+
+**Limitações:**
+
+- **Requer GitHub Advanced Security** para repos privados ($49/mês/dev)
+- Mais lento que Semgrep (análise mais profunda)
+- Setup mais complexo (precisa criar CodeQL database)
+
+**Vantagem sobre Semgrep:**
+
+- **Análise de fluxo completa**: Detecta vulnerabilidades complexas (Semgrep é pattern-matching)
+- **Menos falsos positivos**: Entende contexto completo do código
+- **GitHub native**: Integra perfeitamente com GitHub Security
+
+**Implementação:**
+
+```yaml
+# pipeline-template/v1/shared/validations/codeql/action.yml
+name: 'CodeQL - Advanced SAST'
+description: 'Static analysis with dataflow tracking using CodeQL'
+
+inputs:
+  languages:
+    description: 'Languages to analyze (comma-separated: javascript, python, java, etc)'
+    required: false
+    default: 'javascript'
+  queries:
+    description: 'Query suite (security-extended, security-and-quality)'
+    required: false
+    default: 'security-extended'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: '[ACTION] Initialize CodeQL'
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ inputs.languages }}
+        queries: ${{ inputs.queries }}
+
+    - name: '[ACTION] Autobuild'
+      uses: github/codeql-action/autobuild@v3
+
+    - name: '[ACTION] Perform CodeQL Analysis'
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: codeql-analysis
+```
+
+**Uso no workflow:**
+
+```yaml
+- name: '[STEP] CodeQL - Advanced SAST'
+  uses: ./pipeline-template/v1/shared/validations/codeql
+  with:
+    languages: 'javascript,typescript'
+    queries: 'security-extended'
+```
+
+**⚠️ IMPORTANTE:**
+
+- **Repos públicos**: Grátis, funciona sem configuração adicional
+- **Repos privados**: Requer GitHub Advanced Security (pago)
+- **Alternativa gratuita para repos privados**: Use Semgrep CE (70% da cobertura)
+
+---
+
+### Safety
+
+**Função:** Dependency vulnerabilities para Python (equivalente ao npm audit)
+
+**Custo:** `$0` (database público da PyUp.io)
+
+**Cobertura:**
+
+- Escaneia: `requirements.txt`, `Pipfile`, `Pipfile.lock`, `poetry.lock`, `pyproject.toml`
+- Database de CVEs Python (mantido pela PyUp.io)
+- Classificação por severidade
+- Suggestions de fix (upgrade version)
+
+**Tempo de execução:** `+20-30s` no pipeline
+
+**Limitações:**
+
+- Apenas Python (não escaneia JavaScript, Go, etc.)
+- Database menor que NVD (mas focado em Python)
+- Alguns CVEs demoram para serem adicionados
+
+**Uso:** Se você tiver scripts Python no projeto (ex: `prisma/seed.py`, `scripts/migrate.py`).
+
+**Implementação:**
+
+```yaml
+# pipeline-template/v1/python/shared/validations/safety/action.yml
+name: 'Safety - Python Dependency Scan'
+description: 'Scan Python dependencies for known vulnerabilities'
+
+inputs:
+  requirements-file:
+    description: 'Path to requirements file'
+    required: false
+    default: 'requirements.txt'
+  continue-on-error:
+    description: 'Continue pipeline even if vulnerabilities found'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: '[ACTION] Install Safety'
+      shell: bash
+      run: |
+        echo "📦 [Safety] Installing..."
+        pip install safety
+        safety --version
+
+    - name: '[ACTION] Run Safety check'
+      shell: bash
+      run: |
+        echo "🔍 [Safety] Scanning Python dependencies..."
+        
+        safety check \
+          --file ${{ inputs.requirements-file }} \
+          --json \
+          --output safety-results.json \
+          --continue-on-error
+        
+        VULNS=$(jq '[.vulnerabilities[]] | length' safety-results.json)
+        echo "SAFETY_VULNS=$VULNS" >> $GITHUB_ENV
+        
+        if [[ $VULNS -gt 0 ]]; then
+          echo "⚠️ Found $VULNS vulnerabilities in Python dependencies!"
+          
+          # Show affected packages
+          echo "📦 Affected packages:"
+          jq -r '.vulnerabilities[] | "\(.package): \(.installed_version) → \(.vulnerable_spec) (\(.vulnerability_id))"' safety-results.json
+          
+          if [[ "${{ inputs.continue-on-error }}" != "true" ]]; then
+            exit 1
+          fi
+        else
+          echo "✅ No vulnerabilities found in Python dependencies"
+        fi
+
+    - name: '[ACTION] Upload Safety report'
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: safety-report-${{ github.sha }}
+        path: safety-results.json
+        retention-days: 30
+        if-no-files-found: ignore
+```
+
+**Uso no workflow:**
+
+```yaml
+- name: '[STEP] Safety - Python Dependency Scan'
+  uses: ./pipeline-template/v1/python/shared/validations/safety
+  with:
+    requirements-file: 'requirements.txt'
+```
+
+---
+
+### Snyk Code (Limited Free)
+
+**Função:** SAST cloud-based com AI (alternativa ao Semgrep)
+
+**Custo:** `$0` (**500 scans/mês** em repos públicos) | $25/mês (unlimited)
+
+**Cobertura:**
+
+- **DeepCode AI**: Machine learning para detectar vulnerabilidades
+- **Fix suggestions automáticas**: PR comments com código corrigido
+- **Faster than local SAST**: Cloud-based (não roda no runner)
+- Suporta: JavaScript, TypeScript, Python, Java, C#, Go, PHP, Ruby
+
+**Tempo de execução:** `+30-60s` no pipeline (cloud-based)
+
+**Limitações:**
+
+- **500 scans/mês no free tier** (ideal para projetos pessoais, não empresas)
+- Precisa de conta Snyk (signup gratuito)
+- Envia código para cloud Snyk (privacy concern?)
+
+**Vantagem sobre Semgrep:**
+
+- **AI-powered**: Detecta patterns que Semgrep (regex) não pega
+- **Fix suggestions**: PR comments automáticos com código corrigido
+- **Mais rápido**: Cloud-based (vs Semgrep local)
+
+**Implementação:**
+
+```yaml
+# pipeline-template/v1/shared/validations/snyk-code/action.yml
+name: 'Snyk Code - AI-powered SAST'
+description: 'SAST with AI using Snyk Code (500 free scans/month)'
+
+inputs:
+  snyk-token:
+    description: 'Snyk API token (get from https://snyk.io/account)'
+    required: true
+  severity:
+    description: 'Minimum severity (low, medium, high)'
+    required: false
+    default: 'high'
+  continue-on-error:
+    description: 'Continue pipeline even if issues found'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: '[ACTION] Run Snyk Code'
+      uses: snyk/actions/node@master
+      env:
+        SNYK_TOKEN: ${{ inputs.snyk-token }}
+      with:
+        command: code test
+        args: --severity-threshold=${{ inputs.severity }} --json-file-output=snyk-code-results.json
+
+    - name: '[ACTION] Parse results'
+      shell: bash
+      run: |
+        ISSUES=$(jq '[.runs[].results[]] | length' snyk-code-results.json)
+        echo "SNYK_CODE_ISSUES=$ISSUES" >> $GITHUB_ENV
+        
+        if [[ $ISSUES -gt 0 ]]; then
+          echo "⚠️ Found $ISSUES security issues!"
+          
+          # Show summary
+          echo "📊 Summary:"
+          jq -r '.runs[].results[] | "\(.ruleId): \(.message.text) in \(.locations[0].physicalLocation.artifactLocation.uri)"' snyk-code-results.json | head -20
+          
+          if [[ "${{ inputs.continue-on-error }}" != "true" ]]; then
+            exit 1
+          fi
+        else
+          echo "✅ No security issues found"
+        fi
+
+    - name: '[ACTION] Upload Snyk Code report'
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: snyk-code-report-${{ github.sha }}
+        path: snyk-code-results.json
+        retention-days: 30
+        if-no-files-found: ignore
+```
+
+**Uso no workflow:**
+
+```yaml
+- name: '[STEP] Snyk Code - AI SAST'
+  uses: ./pipeline-template/v1/shared/validations/snyk-code
+  with:
+    snyk-token: ${{ secrets.SNYK_TOKEN }}  # Criar secret no GitHub
+    severity: 'high'
+```
+
+**⚠️ Setup necessário:**
+
+1. Criar conta gratuita: <https://snyk.io/signup>
+2. Obter API token: <https://snyk.io/account>
+3. Adicionar `SNYK_TOKEN` nos secrets do GitHub
+
+---
+
+### OWASP ZAP
+
+**Função:** DAST (Dynamic Application Security Testing)
+
+**Custo:** `$0` (open-source)
+
+**Cobertura:**
+
+- **Runtime testing**: Escaneia app **em execução** (complementa SAST)
+- **OWASP Top 10**: SQL injection, XSS, CSRF, broken auth, etc.
+- **Spider + Active Scan**: Crawls app e testa todas as rotas
+- **API scanning**: Suporta REST, GraphQL, SOAP
+
+**Tempo de execução:** `+5-10min` no pipeline (depende do tamanho da app)
+
+**Limitações:**
+
+- **Precisa de app rodando**: Não funciona com código estático
+- **Mais lento**: Faz requests HTTP reais (vs SAST que analisa código)
+- **Staging only**: Não rode em produção (pode causar danos)
+
+**Vantagem:** **Único DAST gratuito** - detecta vulnerabilidades que SAST não consegue (runtime behavior).
+
+**Implementação:**
+
+```yaml
+# pipeline-template/v1/shared/validations/owasp-zap/action.yml
+name: 'OWASP ZAP - DAST'
+description: 'Dynamic security testing (scans running application)'
+
+inputs:
+  target-url:
+    description: 'URL of the running application to scan'
+    required: true
+  scan-type:
+    description: 'Type of scan (baseline, full, api)'
+    required: false
+    default: 'baseline'
+  continue-on-error:
+    description: 'Continue pipeline even if issues found'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: '[ACTION] Run OWASP ZAP scan'
+      shell: bash
+      run: |
+        echo "🔍 [OWASP ZAP] Scanning running application..."
+        
+        case "${{ inputs.scan-type }}" in
+          baseline)
+            docker run --rm \
+              -v $(pwd):/zap/wrk/:rw \
+              ghcr.io/zaproxy/zaproxy:stable \
+              zap-baseline.py \
+              -t ${{ inputs.target-url }} \
+              -J zap-report.json \
+              -r zap-report.html
+            ;;
+          full)
+            docker run --rm \
+              -v $(pwd):/zap/wrk/:rw \
+              ghcr.io/zaproxy/zaproxy:stable \
+              zap-full-scan.py \
+              -t ${{ inputs.target-url }} \
+              -J zap-report.json \
+              -r zap-report.html
+            ;;
+          api)
+            docker run --rm \
+              -v $(pwd):/zap/wrk/:rw \
+              ghcr.io/zaproxy/zaproxy:stable \
+              zap-api-scan.py \
+              -t ${{ inputs.target-url }} \
+              -f openapi \
+              -J zap-report.json \
+              -r zap-report.html
+            ;;
+        esac
+        
+        # Parse results
+        ALERTS=$(jq '[.site[].alerts[]] | length' zap-report.json)
+        echo "ZAP_ALERTS=$ALERTS" >> $GITHUB_ENV
+        
+        if [[ $ALERTS -gt 0 ]]; then
+          echo "⚠️ Found $ALERTS security issues in running app!"
+          
+          # Show high/medium issues
+          echo "🚨 High/Medium issues:"
+          jq -r '.site[].alerts[] | select(.riskcode | tonumber >= 2) | "\(.risk): \(.alert) in \(.url)"' zap-report.json
+          
+          if [[ "${{ inputs.continue-on-error }}" != "true" ]]; then
+            exit 1
+          fi
+        else
+          echo "✅ No security issues found"
+        fi
+
+    - name: '[ACTION] Upload ZAP reports'
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: zap-report-${{ github.sha }}
+        path: |
+          zap-report.json
+          zap-report.html
+        retention-days: 30
+        if-no-files-found: ignore
+```
+
+**Uso no workflow:**
+
+```yaml
+# Precisa rodar app primeiro
+- name: '[STEP] Start app'
+  run: |
+    npm run start &
+    sleep 10  # Aguarda app inicializar
+
+- name: '[STEP] OWASP ZAP - DAST'
+  uses: ./pipeline-template/v1/shared/validations/owasp-zap
+  with:
+    target-url: 'http://localhost:3000'
+    scan-type: 'baseline'
+
+- name: '[STEP] Stop app'
+  if: always()
+  run: pkill -f "npm run start"
+```
+
+**Recomendação:** Use apenas em **staging environment**, não em produção!
+
+---
+
 ## Já Implementado
 
 ### GitLeaks
@@ -804,18 +1909,15 @@ runs:
 
 **Custo:** `$0` (open-source)
 
-**Cobertura:**
+**Status:** ✅ **Já implementado**
+
+**Documentação completa:** Ver [GITLEAKS.md](./GITLEAKS.md) para:
 
 - 170+ regras built-in (AWS, Azure, GCP, GitHub, Slack, etc.)
-- Detecção em todo histórico do Git (não apenas diff atual)
-- Custom rules via `.gitleaks.toml`
-- Allowlist para falsos positivos (`.gitleaksignore`)
-
-**Tempo de execução:** `+15-30s` no pipeline
-
-**Status:** ✅ **Já implementado** - Ver [GITLEAKS.md](./GITLEAKS.md)
-
-**Documentação completa:** [GITLEAKS.md](./GITLEAKS.md)
+- Configuração detalhada (inputs, .gitleaks.toml, .gitleaksignore)
+- Exemplos de uso e integração
+- Troubleshooting e best practices
+- Como rotacionar secrets detectados
 
 ---
 
@@ -1195,15 +2297,33 @@ git push
 
 ## Referências
 
+### Tier 1 (Implementado)
+
 - **npm audit**: <https://docs.npmjs.com/cli/v10/commands/npm-audit>
 - **Semgrep CE**: <https://semgrep.dev/docs/>
+- **ESLint Security**: <https://github.com/eslint-community/eslint-plugin-security>
+- **GitLeaks**: <https://github.com/gitleaks/gitleaks> | [📖 Docs](./GITLEAKS.md)
+
+### Tier 2 (Implementado)
+
 - **Trivy**: <https://aquasecurity.github.io/trivy/>
-- **GitLeaks**: <https://github.com/gitleaks/gitleaks>
+
+### Tier 3 (Opcional/Futuro)
+
 - **SonarQube CE**: <https://docs.sonarsource.com/sonarqube/latest/>
 - **OWASP Dependency-Check**: <https://owasp.org/www-project-dependency-check/>
 - **OSV-Scanner**: <https://google.github.io/osv-scanner/>
 - **Checkov**: <https://www.checkov.io/>
-- **ESLint Security**: <https://github.com/eslint-community/eslint-plugin-security>
+- **TruffleHog**: <https://github.com/trufflesecurity/trufflehog>
+- **Bearer CLI**: <https://docs.bearer.com/>
+- **Hadolint**: <https://github.com/hadolint/hadolint>
+- **Syft**: <https://github.com/anchore/syft>
+- **Grype**: <https://github.com/anchore/grype>
+- **Detect-Secrets**: <https://github.com/Yelp/detect-secrets>
+- **CodeQL**: <https://codeql.github.com/>
+- **Safety**: <https://pyup.io/safety/>
+- **Snyk Code**: <https://snyk.io/product/snyk-code/>
+- **OWASP ZAP**: <https://www.zaproxy.org/>
 
 ---
 
