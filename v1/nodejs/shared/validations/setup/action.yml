@@ -24,14 +24,16 @@ runs:
       with:
         version: ${{ inputs.pnpm-version }}
 
-    - name: "[ACTION] Cache - Restaurar pnpm store"
+    - name: "[ACTION] Cache - Restaurar node_modules"
+      id: cache-node-modules
       uses: actions/cache@v4
       with:
-        path: ~/.local/share/pnpm/store
-        key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+        path: node_modules
+        key: ${{ runner.os }}-node-modules-${{ hashFiles('**/pnpm-lock.yaml') }}
         restore-keys: |
-          ${{ runner.os }}-pnpm-
+          ${{ runner.os }}-node-modules-
 
     - name: "[ACTION] Instalar dependências (frozen-lockfile)"
+      if: steps.cache-node-modules.outputs.cache-hit != 'true'
       shell: bash
       run: pnpm install --frozen-lockfile
