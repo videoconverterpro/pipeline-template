@@ -93,35 +93,54 @@ runs:
         # Analyze each vulnerability location
         DIRECT_VULNS=0
         TRANSITIVE_VULNS=0
+        declare -a DIRECT_PACKAGES=()
+        declare -a TRANSITIVE_PACKAGES=()
         
         # Check if vulnerabilities are in pnpm-lock.yaml or package-lock.json (transitive)
         # vs direct package.json dependencies
-        while IFS= read -r location; do
+        while IFS='|' read -r location package_name severity; do
+          if [ -z "$location" ]; then
+            continue
+          fi
+          
           if [[ "$location" == *"lock.yaml"* ]] || [[ "$location" == *"package-lock.json"* ]]; then
             # Check if it's a deep transitive dependency
             # For pnpm/npm lockfiles, all deps appear there, but we need to check package.json
             TRANSITIVE_VULNS=$((TRANSITIVE_VULNS + 1))
+            TRANSITIVE_PACKAGES+=("$package_name ($severity)")
           else
             DIRECT_VULNS=$((DIRECT_VULNS + 1))
+            DIRECT_PACKAGES+=("$package_name ($severity)")
           fi
-        done < <(jq -r '.runs[0].results[].locations[].physicalLocation.artifactLocation.uri' trivy-results.sarif 2>/dev/null || echo "")
+        done < <(jq -r '.runs[0].results[] | (.locations[].physicalLocation.artifactLocation.uri + "|" + (.message.text | capture("Package: (?<pkg>[^\n]+)").pkg) + "|" + (.level | ascii_upcase))' trivy-results.sarif 2>/dev/null || echo "")
         
         # For filesystem scans, vulnerabilities in lockfiles are typically transitive
         # Check if we have package.json to compare
         if [ -f "package.json" ] && [ $TRANSITIVE_VULNS -gt 0 ]; then
           echo "📦 Detected lockfile vulnerabilities - checking if transitive..."
           
-          # Extract package names from Trivy results
+          # Extract unique package names from Trivy results
           VULN_PACKAGES=$(jq -r '.runs[0].results[].message.text' trivy-results.sarif 2>/dev/null | grep "Package:" | sed 's/Package: //' | sort -u)
           
           # Check if any vulnerable package is in direct dependencies
           FOUND_DIRECT=false
+          RECLASSIFIED=0
           while IFS= read -r pkg; do
             if [ -n "$pkg" ] && grep -q "\"$pkg\"" package.json 2>/dev/null; then
               echo "⚠️  Package '$pkg' is a DIRECT dependency"
               FOUND_DIRECT=true
               DIRECT_VULNS=$((DIRECT_VULNS + 1))
               TRANSITIVE_VULNS=$((TRANSITIVE_VULNS - 1))
+              RECLASSIFIED=$((RECLASSIFIED + 1))
+              
+              # Move from transitive to direct list
+              for i in "${!TRANSITIVE_PACKAGES[@]}"; do
+                if [[ "${TRANSITIVE_PACKAGES[$i]}" == "$pkg"* ]]; then
+                  DIRECT_PACKAGES+=("${TRANSITIVE_PACKAGES[$i]}")
+                  unset 'TRANSITIVE_PACKAGES[$i]'
+                  break
+                fi
+              done
             fi
           done <<< "$VULN_PACKAGES"
           
@@ -140,12 +159,46 @@ runs:
         # Decision logic
         if [ $DIRECT_VULNS -eq 0 ] && [ $TRANSITIVE_VULNS -gt 0 ]; then
           echo "⚠️  WARNING: All vulnerabilities are in TRANSITIVE dependencies"
+          echo ""
+          echo "📊 Transitive Dependencies with Security Issues: $TRANSITIVE_VULNS"
+          if [ ${#TRANSITIVE_PACKAGES[@]} -gt 0 ]; then
+            echo "   Affected packages:"
+            # Remove duplicates and print
+            printf '%s\n' "${TRANSITIVE_PACKAGES[@]}" | sort -u | while read -r pkg; do
+              [ -n "$pkg" ] && echo "     - $pkg"
+            done
+          fi
+          echo ""
           echo "💡 These come from nested dependencies. Monitor for upstream fixes."
           echo ""
           echo "✅ Pipeline will PASS (no direct dependency vulnerabilities)"
           exit 0
         elif [ $DIRECT_VULNS -gt 0 ]; then
-          echo "🚨 CRITICAL: Found $DIRECT_VULNS direct dependency vulnerability/vulnerabilities"
+          echo "🚨 CRITICAL: Security vulnerabilities detected!"
+          echo ""
+          
+          if [ $DIRECT_VULNS -gt 0 ]; then
+            echo "📊 Direct Dependencies with Security Issues: $DIRECT_VULNS"
+            if [ ${#DIRECT_PACKAGES[@]} -gt 0 ]; then
+              echo "   Affected packages:"
+              printf '%s\n' "${DIRECT_PACKAGES[@]}" | sort -u | while read -r pkg; do
+                [ -n "$pkg" ] && echo "     - $pkg"
+              done
+            fi
+            echo ""
+          fi
+          
+          if [ $TRANSITIVE_VULNS -gt 0 ]; then
+            echo "📊 Transitive Dependencies with Security Issues: $TRANSITIVE_VULNS"
+            if [ ${#TRANSITIVE_PACKAGES[@]} -gt 0 ]; then
+              echo "   Affected packages:"
+              printf '%s\n' "${TRANSITIVE_PACKAGES[@]}" | sort -u | while read -r pkg; do
+                [ -n "$pkg" ] && echo "     - $pkg"
+              done
+            fi
+            echo ""
+          fi
+          
           echo "❌ Pipeline will FAIL - please update your direct dependencies"
           echo ""
           if [ "${{ inputs.exit-code }}" = "1" ]; then
