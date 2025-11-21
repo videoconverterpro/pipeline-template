@@ -13,10 +13,8 @@ Repositório centralizado de **composite actions** para pipelines CI/CD em múlt
 v1/
 ├── nodejs/24/              # Node.js 24 (genérico para qualquer framework)
 │   ├── setup/              # Setup Node.js + pnpm + cache
-│   ├── lint/               # Prettier + ESLint (framework-agnostic)
-│   └── nestjs/             # Actions específicas do NestJS
-│       ├── build/          # Build com Prisma + validações
-│       └── test/           # Testes unitários + e2e + coverage
+│   ├── lint/               # Prettier + ESLint
+│   └── build/              # pnpm build (funciona com NestJS, Express, Next.js, etc)
 ├── golang/                 # Go (futuro)
 │   ├── setup/
 │   ├── lint/
@@ -29,9 +27,10 @@ v1/
 
 ### 🧩 Filosofia da Organização
 
-- **Genérico primeiro**: Actions em `v1/nodejs/24/` funcionam para **qualquer projeto Node.js**
-- **Específico quando necessário**: Subpastas por framework (`nestjs/`, `express/`, `nextjs/`) apenas para steps únicos
+- **100% Genérico**: Actions funcionam para **qualquer projeto Node.js** (NestJS, Express, Next.js, etc)
+- **Framework-agnostic**: O `package.json` do projeto define como executar `build`, `lint`, `test`
 - **Versionamento semântico**: `v1/` permite breaking changes no futuro (`v2/` sem quebrar projetos antigos)
+- **Simplicidade**: Evitamos subdivisões por framework - mantém o template enxuto e manutenível
 
 ## 🎯 Como Usar
 
@@ -54,11 +53,11 @@ jobs:
       - name: Lint (Prettier + ESLint)
         uses: videoconverterpro/pipeline-template/v1/nodejs/24/lint@main
         
-      - name: Build genérico
-        run: pnpm build
+      - name: Build
+        uses: videoconverterpro/pipeline-template/v1/nodejs/24/build@main
 ```
 
-### NestJS Completo (com Prisma + testes)
+### NestJS com Prisma
 
 ```yaml
 name: CI/CD NestJS
@@ -74,35 +73,57 @@ jobs:
       - name: Setup Node.js + pnpm
         uses: videoconverterpro/pipeline-template/v1/nodejs/24/setup@main
         
-      - name: Lint (Prettier + ESLint)
+      - name: Lint
         uses: videoconverterpro/pipeline-template/v1/nodejs/24/lint@main
         
-      - name: Build NestJS com Prisma
-        uses: videoconverterpro/pipeline-template/v1/nodejs/24/nestjs/build@main
-      
-      - name: Testes (unitários + e2e)
-        uses: videoconverterpro/pipeline-template/v1/nodejs/24/nestjs/test@main
-        with:
-          run-e2e: 'true'
-          coverage: 'true'
+      - name: Build (Prisma Client é gerado automaticamente no pnpm install)
+        uses: videoconverterpro/pipeline-template/v1/nodejs/24/build@main
 ```
+
+### Go (Futuro)
+
+```yaml
+name: CI/CD Go
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Go
+        uses: videoconverterpro/pipeline-template/v1/golang/setup@main
+        
+      - name: Lint
+        uses: videoconverterpro/pipeline-template/v1/golang/lint@main
+        
+      - name: Build
+        uses: videoconverterpro/pipeline-template/v1/golang/build@main
+```
+
+### Rust (Futuro)
+
+```yaml
+name: CI/CD Rust
+
+on: [push]
+
+jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       
       - name: Setup Rust
-        uses: videoconverterpro/pipeline-template/.github/actions/rust/setup@main
-        with:
-          rust-version: 'stable'
-      
-      - name: Lint (clippy + rustfmt)
-        uses: videoconverterpro/pipeline-template/.github/actions/rust/lint@main
-      
+        uses: videoconverterpro/pipeline-template/v1/rust/setup@main
+        
+      - name: Lint
+        uses: videoconverterpro/pipeline-template/v1/rust/lint@main
+        
       - name: Build
-        uses: videoconverterpro/pipeline-template/.github/actions/rust/build@main
-        with:
-          profile: 'release'
+        uses: videoconverterpro/pipeline-template/v1/rust/build@main
 ```
 
 ## ✨ Benefícios
@@ -131,15 +152,15 @@ jobs:
 
 ### Adicionar Nova Tecnologia
 
-1. Crie pasta: `.github/actions/<tech>/`
+1. Crie pasta: `v1/<tech>/`
 2. Adicione 3 actions: `setup/`, `lint/`, `build/`
 3. Teste em projeto real
 4. Atualize README
 
 ### Estrutura Padrão
 
-```
-<tech>/
+```text
+v1/<tech>/
 ├── setup/action.yml      # Instalar runtime + cache
 ├── lint/action.yml       # Validação de código
 └── build/action.yml      # Compilação/build
