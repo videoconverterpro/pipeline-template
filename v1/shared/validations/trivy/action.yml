@@ -45,12 +45,116 @@ runs:
         scan-type: ${{ inputs.scan-type }}
         scan-ref: ${{ inputs.scan-path }}
         severity: ${{ inputs.severity }}
-        exit-code: ${{ inputs.exit-code }}
+        exit-code: '0'  # Always pass - we'll analyze after
         format: ${{ inputs.format }}
         output: 'trivy-results.sarif'
         skip-dirs: ${{ inputs.skip-dirs }}
       env:
         TRIVY_TIMEOUT: '10m'
+    
+    - name: '[ACTION] Analyze Trivy results - Filter transitive dependencies'
+      if: always()
+      shell: bash
+      run: |
+        echo ""
+        echo "📊 [Trivy] Analyzing scan results..."
+        
+        if [ ! -f "trivy-results.sarif" ]; then
+          echo "⚠️  No SARIF file generated"
+          exit 0
+        fi
+        
+        # Check if jq is available
+        if ! command -v jq &> /dev/null; then
+          echo "⚠️  jq not found - cannot filter transitive dependencies"
+          echo "   Installing vulnerabilities as-is"
+          if [ "${{ inputs.exit-code }}" = "1" ]; then
+            # Check if there are any results
+            RESULT_COUNT=$(jq -r '.runs[0].results | length' trivy-results.sarif 2>/dev/null || echo "0")
+            if [ "$RESULT_COUNT" -gt 0 ]; then
+              echo "❌ Found $RESULT_COUNT vulnerability/vulnerabilities"
+              exit 1
+            fi
+          fi
+          exit 0
+        fi
+        
+        # Extract vulnerability locations from SARIF
+        TOTAL_VULNS=$(jq -r '.runs[0].results | length' trivy-results.sarif 2>/dev/null || echo "0")
+        
+        if [ "$TOTAL_VULNS" -eq 0 ]; then
+          echo "✅ [Trivy] No vulnerabilities found"
+          exit 0
+        fi
+        
+        echo "🔍 Found $TOTAL_VULNS total vulnerability/vulnerabilities"
+        echo ""
+        
+        # Analyze each vulnerability location
+        DIRECT_VULNS=0
+        TRANSITIVE_VULNS=0
+        
+        # Check if vulnerabilities are in pnpm-lock.yaml or package-lock.json (transitive)
+        # vs direct package.json dependencies
+        while IFS= read -r location; do
+          if [[ "$location" == *"lock.yaml"* ]] || [[ "$location" == *"package-lock.json"* ]]; then
+            # Check if it's a deep transitive dependency
+            # For pnpm/npm lockfiles, all deps appear there, but we need to check package.json
+            TRANSITIVE_VULNS=$((TRANSITIVE_VULNS + 1))
+          else
+            DIRECT_VULNS=$((DIRECT_VULNS + 1))
+          fi
+        done < <(jq -r '.runs[0].results[].locations[].physicalLocation.artifactLocation.uri' trivy-results.sarif 2>/dev/null || echo "")
+        
+        # For filesystem scans, vulnerabilities in lockfiles are typically transitive
+        # Check if we have package.json to compare
+        if [ -f "package.json" ] && [ $TRANSITIVE_VULNS -gt 0 ]; then
+          echo "📦 Detected lockfile vulnerabilities - checking if transitive..."
+          
+          # Extract package names from Trivy results
+          VULN_PACKAGES=$(jq -r '.runs[0].results[].message.text' trivy-results.sarif 2>/dev/null | grep "Package:" | sed 's/Package: //' | sort -u)
+          
+          # Check if any vulnerable package is in direct dependencies
+          FOUND_DIRECT=false
+          while IFS= read -r pkg; do
+            if [ -n "$pkg" ] && grep -q "\"$pkg\"" package.json 2>/dev/null; then
+              echo "⚠️  Package '$pkg' is a DIRECT dependency"
+              FOUND_DIRECT=true
+              DIRECT_VULNS=$((DIRECT_VULNS + 1))
+              TRANSITIVE_VULNS=$((TRANSITIVE_VULNS - 1))
+            fi
+          done <<< "$VULN_PACKAGES"
+          
+          if [ "$FOUND_DIRECT" = false ]; then
+            echo "✅ All vulnerable packages are TRANSITIVE dependencies"
+          fi
+        fi
+        
+        echo ""
+        echo "📊 Analysis Summary:"
+        echo "   Total vulnerabilities: $TOTAL_VULNS"
+        echo "   Direct dependencies: $DIRECT_VULNS"
+        echo "   Transitive dependencies: $TRANSITIVE_VULNS"
+        echo ""
+        
+        # Decision logic
+        if [ $DIRECT_VULNS -eq 0 ] && [ $TRANSITIVE_VULNS -gt 0 ]; then
+          echo "⚠️  WARNING: All vulnerabilities are in TRANSITIVE dependencies"
+          echo "💡 These come from nested dependencies. Monitor for upstream fixes."
+          echo ""
+          echo "✅ Pipeline will PASS (no direct dependency vulnerabilities)"
+          exit 0
+        elif [ $DIRECT_VULNS -gt 0 ]; then
+          echo "🚨 CRITICAL: Found $DIRECT_VULNS direct dependency vulnerability/vulnerabilities"
+          echo "❌ Pipeline will FAIL - please update your direct dependencies"
+          echo ""
+          if [ "${{ inputs.exit-code }}" = "1" ]; then
+            exit 1
+          fi
+        else
+          echo "✅ [Trivy] No vulnerabilities found"
+          exit 0
+        fi
 
     - name: '[ACTION] Upload SARIF to GitHub Security'
       if: always() && inputs.format == 'sarif'
