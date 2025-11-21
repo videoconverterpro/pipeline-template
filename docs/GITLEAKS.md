@@ -240,7 +240,7 @@ commitsSince = "2024-01-01"
 
 Para ignorar findings específicos (após rotacionar secrets):
 
-```
+```md
 # Formato: <fingerprint-do-finding>
 # Obtenha o fingerprint do relatório gitleaks-report.json
 

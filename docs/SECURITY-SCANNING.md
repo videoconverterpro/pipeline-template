@@ -138,7 +138,7 @@ runs:
 
 **Exemplo de saída:**
 
-```
+```md
 found 3 vulnerabilities (1 moderate, 2 high) in 847 scanned packages
   2 vulnerabilities require manual review. See the full report for details.
 ```
@@ -227,7 +227,7 @@ runs:
 
 **Exemplo de regras detectadas:**
 
-```
+```md
 javascript.express.security.audit.xss.pug.explicit-unescape
 javascript.lang.security.audit.sql-injection
 javascript.express.security.audit.express-check-csurf-middleware-missing
@@ -309,7 +309,7 @@ Nenhuma mudança necessária - o lint existente já executará as novas regras:
 
 **Exemplo de detecções:**
 
-```
+```md
 src/auth/jwt.service.ts
   12:15  error  Hardcoded secret detected  no-secrets/no-secrets
   
@@ -439,7 +439,7 @@ runs:
 
 **Exemplo de saída:**
 
-```
+```md
 trivy-results.sarif (2024-01-15T10:30:00Z)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Total: 15 (HIGH: 12, CRITICAL: 3)
@@ -862,7 +862,7 @@ runs:
 
 **Tier 1 - Implementar AGORA (10 minutos):**
 
-```
+```md
 ✅ GitLeaks (secrets) - JÁ IMPLEMENTADO
 🆕 npm audit (dependency vulnerabilities)
 🆕 Semgrep CE (SAST - security hotspots)
@@ -877,7 +877,7 @@ runs:
 
 **Tier 2 - Implementar PRÓXIMA SEMANA (30 minutos):**
 
-```
+```md
 ✅ Tier 1 completo
 🆕 Trivy (filesystem + container + IaC)
 ```
@@ -890,7 +890,7 @@ runs:
 
 **Tier 3 - Opcional/Futuro (quando crescer):**
 
-```
+```md
 ✅ Tier 1 + 2 completos
 🆕 SonarQube CE self-hosted (code quality dashboard)
 🆕 Checkov (IaC extra validation)
@@ -906,7 +906,7 @@ runs:
 
 #### C&A Brasil (Enterprise Stack)
 
-```
+```md
 ✅ Snyk Pro ($500/mês)
 ✅ SonarQube Cloud ($360/ano)
 ✅ GitLeaks (self-hosted)
@@ -920,7 +920,7 @@ runs:
 
 #### VideoConverterPro (Free Stack)
 
-```
+```md
 ✅ GitLeaks (secrets)
 ✅ npm audit (dependencies)
 ✅ Semgrep CE (SAST)
@@ -935,7 +935,7 @@ runs:
 
 ### Timeline de Implementação
 
-```
+```md
 ┌─────────────────────────────────────────────────────────────────┐
 │ HOJE (21/11/2024)                                               │
 ├─────────────────────────────────────────────────────────────────┤
