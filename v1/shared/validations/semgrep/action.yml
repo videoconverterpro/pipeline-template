@@ -30,17 +30,41 @@ runs:
         echo "   Severity: ${{ inputs.severity }}"
         echo "   Scan path: ${{ inputs.scan-path }}"
       
-    - name: '[ACTION] Execute Semgrep'
-      uses: semgrep/semgrep-action@v1
+    - name: '[ACTION] Setup Python for Semgrep'
+      uses: actions/setup-python@v5
       with:
-        config: ${{ inputs.config }}
-      continue-on-error: ${{ inputs.continue-on-error == 'true' }}
-      env:
-        SEMGREP_RULES: ${{ inputs.config }}
+        python-version: '3.11'
+    
+    - name: '[ACTION] Install Semgrep'
+      shell: bash
+      run: |
+        pip install semgrep
+        semgrep --version
+    
+    - name: '[ACTION] Execute Semgrep'
+      shell: bash
+      run: |
+        set +e
+        semgrep scan \
+          --config=${{ inputs.config }} \
+          --sarif \
+          --output=semgrep.sarif \
+          ${{ inputs.scan-path }}
+        EXIT_CODE=$?
+        set -e
+        
+        if [ $EXIT_CODE -ne 0 ] && [ "${{ inputs.continue-on-error }}" = "false" ]; then
+          echo "❌ [Semgrep] Findings detected (exit code: $EXIT_CODE)"
+          exit $EXIT_CODE
+        elif [ $EXIT_CODE -ne 0 ]; then
+          echo "⚠️ [Semgrep] Findings detected but continuing (continue-on-error=true)"
+        else
+          echo "✅ [Semgrep] No findings"
+        fi
 
     - name: '[ACTION] Upload SARIF to GitHub Security'
       if: always()
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@v4
       with:
         sarif_file: semgrep.sarif
         category: semgrep
