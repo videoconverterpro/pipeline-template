@@ -13,4 +13,4 @@ runs:
       with:
         name: dist-${{ github.sha }}
         path: dist/
-        retention-days: 7
+        retention-days: 1
