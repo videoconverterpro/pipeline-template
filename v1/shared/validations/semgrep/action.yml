@@ -34,14 +34,21 @@ runs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-    
+
+    - name: '[ACTION] Cache pip dependencies'
+      id: cache-semgrep
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-semgrep-1.144.0
+        restore-keys: |
+          ${{ runner.os }}-pip-semgrep-
+
     - name: '[ACTION] Install Semgrep'
       shell: bash
       run: |
-        pip install semgrep
-        semgrep --version
-    
-    - name: '[ACTION] Execute Semgrep'
+        pip install semgrep==1.144.0
+        semgrep --version    - name: '[ACTION] Execute Semgrep'
       shell: bash
       run: |
         set +e
