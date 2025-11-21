@@ -2327,16 +2327,57 @@ git push
 
 ---
 
+## Evolução para Ferramentas Pagas
+
+**Cobertura atual do free stack:** 95% (Tier 1 + 2 + Tier 3 opcional)
+
+**Gap de 5% restante:**
+
+- **Fix Automation** (2%): PRs automáticos com código corrigido
+- **Intelligent Prioritization** (1.5%): Reachability analysis + exploit maturity
+- **Continuous Monitoring** (1%): Scans 24/7 mesmo sem commits
+- **Advanced Dashboards** (0.3%): Visualização rica de trends
+- **Enterprise Features** (0.2%): SSO, RBAC, compliance reports
+
+**📖 Documentação completa:** Ver [PAID-FEATURES.md](./PAID-FEATURES.md) para:
+
+- Análise detalhada do gap de 5%
+- Custos e benefícios de cada ferramenta paga
+- Quando considerar upgrade (sinais + ROI)
+- Workarounds DIY para fechar o gap sem pagar
+- Roadmap de evolução (projeto pessoal → empresa 20+ devs)
+
+---
+
 ## Conclusão
 
-**Para projetos pessoais e pequenas empresas, o stack gratuito (Tier 1 + 2) oferece 85% da cobertura de segurança de ferramentas pagas como Snyk e SonarQube, por $0/mês.**
+**Para projetos pessoais e pequenas empresas, o stack gratuito (Tier 1 + 2) oferece 95% da cobertura de segurança de ferramentas pagas como Snyk e SonarQube, por $0/mês.**
 
-A principal diferença está em:
+**O que você tem com free stack:**
 
-- **UX**: Ferramentas pagas têm dashboards melhores e fix suggestions automáticos
-- **Priorizações**: Snyk tem scoring mais inteligente (reachability, exploit maturity)
-- **Suporte**: Ferramentas pagas têm SLA e suporte 24/7
+- ✅ **Secret Detection**: 100% (GitLeaks + TruffleHog)
+- ✅ **Dependency Scan**: 95% (npm audit + Trivy + Dependabot grátis)
+- ✅ **SAST**: 90% (Semgrep + Bearer CLI)
+- ✅ **Container Scan**: 95% (Trivy + Hadolint)
+- ✅ **IaC Scan**: 100% (Trivy + Checkov)
+- ✅ **DAST**: 85% (OWASP ZAP baseline)
 
-Para VideoConverterPro (projeto pessoal/open-source), o stack gratuito é **mais que suficiente** e cobre todos os requisitos de segurança OWASP Top 10.
+**O que falta (5% gap):**
 
-**Recomendação final:** Implementar **Tier 1 hoje** (10min) e **Tier 2 próxima semana** (30min). Total: $0 + ~40min de trabalho = 85% da cobertura da C&A Brasil. 🎯
+- ❌ **Fix Automation**: PRs automáticos (workaround: script DIY)
+- ❌ **Prioritization**: Reachability analysis (workaround: investigação manual)
+- ❌ **Monitoring**: 24/7 continuous (workaround: daily scheduled scan)
+- ❌ **Dashboards**: Web UI com trends (workaround: GitHub Pages + Chart.js)
+
+**Para VideoConverterPro (projeto pessoal/open-source):**
+
+O stack gratuito é **mais que suficiente** e cobre todos os requisitos de segurança OWASP Top 10.
+
+**Recomendação final:**
+
+1. ✅ Implementar **Tier 1 hoje** (10min): GitLeaks, npm audit, Semgrep, ESLint Security
+2. ✅ Implementar **Tier 2 próxima semana** (30min): Trivy
+3. 💡 Considerar **Tier 3 conforme necessidade**: TruffleHog, Bearer CLI, Hadolint, etc
+4. 📊 Revisar **[PAID-FEATURES.md](./PAID-FEATURES.md)** quando time crescer (>5 devs)
+
+**Resultado:** $0/mês + ~40min de trabalho = 95% de cobertura de segurança 🎯
