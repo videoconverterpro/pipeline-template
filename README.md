@@ -77,17 +77,17 @@ jobs:
       - name: Lint
         uses: videoconverterpro/pipeline-template/v1/nodejs/24/lint@main
         
-      - name: Test - Unitários + Integração + E2E
+      - name: Test
         uses: videoconverterpro/pipeline-template/v1/nodejs/24/test@main
         with:
           unit: 'true'
-          integration: 'true'
           e2e: 'true'
-          coverage: 'true'
         
-      - name: Build (Prisma Client é gerado automaticamente no pnpm install)
+      - name: Build
         uses: videoconverterpro/pipeline-template/v1/nodejs/24/build@main
 ```
+
+> 📖 **Testes**: Veja [docs/TESTING.md](docs/TESTING.md) para documentação completa sobre tipos de teste, inputs e estratégias.
 
 ### Next.js com Testes
 
@@ -108,13 +108,10 @@ jobs:
       - name: Lint
         uses: videoconverterpro/pipeline-template/v1/nodejs/24/lint@main
         
-      - name: Test - Unitários
+      - name: Test
         uses: videoconverterpro/pipeline-template/v1/nodejs/24/test@main
-        with:
-          unit: 'true'
-          e2e: 'false'
         
-      - name: Build Next.js
+      - name: Build
         uses: videoconverterpro/pipeline-template/v1/nodejs/24/build@main
 ```
 
@@ -164,28 +161,11 @@ jobs:
         uses: videoconverterpro/pipeline-template/v1/rust/build@main
 ```
 
-## 📋 Inputs Disponíveis
+## 📚 Documentação Adicional
 
-### `v1/nodejs/24/test`
-
-| Input | Padrão | Descrição |
-|-------|--------|-----------|
-| `unit` | `true` | Executar testes unitários (`pnpm test`) |
-| `integration` | `false` | Executar testes de integração (`pnpm test:integration`) |
-| `e2e` | `false` | Executar testes e2e (`pnpm test:e2e`) |
-| `coverage` | `false` | Gerar relatório de cobertura (`pnpm test:cov`) + upload artifact |
-
-**Exemplo completo:**
-
-```yaml
-- name: Test - Todos os tipos
-  uses: videoconverterpro/pipeline-template/v1/nodejs/24/test@main
-  with:
-    unit: 'true'
-    integration: 'true'
-    e2e: 'true'
-    coverage: 'true'
-```
+- **[Testes](docs/TESTING.md)** - Guia completo sobre tipos de teste, inputs e estratégias
+- **[CI/CD](docs/CICD.md)** - Nomenclatura, convenções e boas práticas *(futuro)*
+- **[Cache](docs/CACHE.md)** - Otimização de performance com cache *(futuro)*
 
 ## ✨ Benefícios
 
@@ -207,7 +187,7 @@ jobs:
 ## 📦 Projetos Usando
 
 - [`videoconverterpro/api`](https://github.com/videoconverterpro/api) - Node.js/NestJS
-- _Adicione seu projeto aqui_
+- *Adicione seu projeto aqui*
 
 ## 🔧 Desenvolvimento
 
