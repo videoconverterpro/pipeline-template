@@ -209,13 +209,17 @@ runs:
           exit 0
         fi
 
-    - name: '[ACTION] Upload SARIF to GitHub Security'
-      if: always() && inputs.format == 'sarif'
-      uses: github/codeql-action/upload-sarif@v4
-      with:
-        sarif_file: 'trivy-results.sarif'
-        category: trivy-${{ inputs.scan-type }}
-      continue-on-error: true
+    # GitHub Advanced Security (code scanning) é necessário para upload de SARIF
+    # Para repositórios privados, isso é um recurso PAGO
+    # Para repositórios públicos, é GRÁTIS
+    # Descomente abaixo se você tiver Advanced Security habilitado:
+    # - name: '[ACTION] Upload SARIF to GitHub Security'
+    #   if: always() && inputs.format == 'sarif'
+    #   uses: github/codeql-action/upload-sarif@v4
+    #   with:
+    #     sarif_file: 'trivy-results.sarif'
+    #     category: trivy-${{ inputs.scan-type }}
+    #   continue-on-error: true
 
     - name: '[ACTION] Upload Trivy report artifact'
       if: always()
