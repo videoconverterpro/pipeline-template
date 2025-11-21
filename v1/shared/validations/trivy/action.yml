@@ -39,6 +39,14 @@ runs:
         echo "   Scan path: ${{ inputs.scan-path }}"
         echo "   Skip dirs: ${{ inputs.skip-dirs }}"
 
+    - name: '[ACTION] Cache Trivy DB'
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/trivy
+        key: ${{ runner.os }}-trivy-db-${{ github.run_id }}
+        restore-keys: |
+          ${{ runner.os }}-trivy-db-
+
     - name: '[ACTION] Run Trivy scan'
       uses: aquasecurity/trivy-action@master
       with:
