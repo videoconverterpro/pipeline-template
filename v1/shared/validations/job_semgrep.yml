@@ -1,0 +1,57 @@
+name: 'Semgrep CE - SAST Scan'
+description: 'Static Application Security Testing using Semgrep Community Edition (language-agnostic)'
+
+inputs:
+  config:
+    description: 'Semgrep config (auto, p/security-audit, p/owasp-top-ten, p/ci, p/default)'
+    required: false
+    default: 'auto'
+  severity:
+    description: 'Minimum severity to report (INFO, WARNING, ERROR)'
+    required: false
+    default: 'WARNING'
+  continue-on-error:
+    description: 'Continue pipeline even if findings detected'
+    required: false
+    default: 'false'
+  scan-path:
+    description: 'Path to scan (defaults to current directory)'
+    required: false
+    default: '.'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: '[ACTION] Run Semgrep scan'
+      shell: bash
+      run: |
+        echo "🔍 [Semgrep] Starting SAST scan..."
+        echo "   Config: ${{ inputs.config }}"
+        echo "   Severity: ${{ inputs.severity }}"
+        echo "   Scan path: ${{ inputs.scan-path }}"
+      
+    - name: '[ACTION] Execute Semgrep'
+      uses: returntocorp/semgrep-action@v1
+      with:
+        config: ${{ inputs.config }}
+        generateSarif: true
+      continue-on-error: ${{ inputs.continue-on-error == 'true' }}
+      env:
+        SEMGREP_RULES: ${{ inputs.config }}
+
+    - name: '[ACTION] Upload SARIF to GitHub Security'
+      if: always()
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: semgrep.sarif
+        category: semgrep
+      continue-on-error: true
+
+    - name: '[ACTION] Upload Semgrep report artifact'
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: semgrep-report-${{ github.sha }}
+        path: semgrep.sarif
+        retention-days: 30
+        if-no-files-found: ignore

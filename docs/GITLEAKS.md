@@ -37,6 +37,7 @@ A action `v1/nodejs/24/gitleaks` escaneia todo o repositório Git (histórico co
 ```
 
 **Comportamento:**
+
 - ✅ Falha se secrets forem encontrados
 - ✅ Gera artifact com relatório JSON
 - ✅ Exibe resumo das findings
@@ -133,6 +134,7 @@ GitLeaks v8.21.2 inclui **170+ regras padrão** para detectar:
 ### Categorias Principais
 
 #### 1. Cloud Providers
+
 - AWS Access Key, Secret Key, Session Token
 - Azure Storage Key, SAS Token, Service Principal
 - GCP API Key, Service Account, OAuth Token
@@ -140,16 +142,19 @@ GitLeaks v8.21.2 inclui **170+ regras padrão** para detectar:
 - Heroku API Key
 
 #### 2. Version Control
+
 - GitHub Token (ghp_, gho_, ghs_, ghu_)
 - GitLab Token
 - Bitbucket Token
 
 #### 3. Communication Platforms
+
 - Slack Token (xoxb-, xoxp-, xoxa-, xoxr-)
 - Discord Token
 - Telegram Bot Token
 
 #### 4. Payment & Services
+
 - Stripe API Key
 - PayPal Token
 - Square Access Token
@@ -157,12 +162,14 @@ GitLeaks v8.21.2 inclui **170+ regras padrão** para detectar:
 - SendGrid API Key
 
 #### 5. Databases
+
 - MongoDB Connection String
 - PostgreSQL Connection String
 - MySQL Connection String
 - Redis URL
 
 #### 6. Generic Patterns
+
 - API Keys (32-64 caracteres alfanuméricos)
 - Passwords em variáveis
 - Private Keys (RSA, SSH, PGP)
@@ -202,7 +209,7 @@ docker run --rm zricethezav/gitleaks:v8.21.2 rules list
 
 ### Método 3: Documentação Oficial
 
-Todas as regras padrão: https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml
+Todas as regras padrão: <https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml>
 
 ## 📝 Configuração Personalizada
 
@@ -257,6 +264,7 @@ aws iam create-access-key --user-name myuser
 ### 2. 📥 Baixar o Relatório
 
 No GitHub Actions:
+
 1. Acesse a run que falhou
 2. Vá em "Summary"
 3. Baixe o artifact `gitleaks-report-<sha>`
@@ -404,10 +412,10 @@ Estrutura do `gitleaks-report.json`:
 
 ## 📚 Recursos Adicionais
 
-- **GitLeaks GitHub**: https://github.com/gitleaks/gitleaks
-- **Documentação Oficial**: https://github.com/gitleaks/gitleaks/wiki
-- **Regras Padrão**: https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml
-- **Releases**: https://github.com/gitleaks/gitleaks/releases
+- **GitLeaks GitHub**: <https://github.com/gitleaks/gitleaks>
+- **Documentação Oficial**: <https://github.com/gitleaks/gitleaks/wiki>
+- **Regras Padrão**: <https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml>
+- **Releases**: <https://github.com/gitleaks/gitleaks/releases>
 
 ## 📝 Licença
 

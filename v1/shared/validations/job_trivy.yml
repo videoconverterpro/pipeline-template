@@ -1,0 +1,71 @@
+name: 'Trivy - Multi-purpose Security Scanner'
+description: 'Scan filesystem, containers, IaC, and secrets using Trivy (language-agnostic)'
+
+inputs:
+  scan-type:
+    description: 'Type of scan (fs, image, config)'
+    required: false
+    default: 'fs'
+  severity:
+    description: 'Severities to scan (UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL)'
+    required: false
+    default: 'HIGH,CRITICAL'
+  scan-path:
+    description: 'Path to scan (. for current directory, or image name for container scan)'
+    required: false
+    default: '.'
+  exit-code:
+    description: 'Exit code when vulnerabilities found (0 or 1)'
+    required: false
+    default: '1'
+  format:
+    description: 'Output format (table, json, sarif)'
+    required: false
+    default: 'sarif'
+  skip-dirs:
+    description: 'Comma-separated directories to skip (e.g., node_modules,vendor)'
+    required: false
+    default: 'node_modules,dist,build,.git'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: '[ACTION] Trivy scan - Info'
+      shell: bash
+      run: |
+        echo "🔍 [Trivy] Starting multi-purpose security scan..."
+        echo "   Scan type: ${{ inputs.scan-type }}"
+        echo "   Severity: ${{ inputs.severity }}"
+        echo "   Scan path: ${{ inputs.scan-path }}"
+        echo "   Skip dirs: ${{ inputs.skip-dirs }}"
+
+    - name: '[ACTION] Run Trivy scan'
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: ${{ inputs.scan-type }}
+        scan-ref: ${{ inputs.scan-path }}
+        severity: ${{ inputs.severity }}
+        exit-code: ${{ inputs.exit-code }}
+        format: ${{ inputs.format }}
+        output: 'trivy-results.sarif'
+        skip-dirs: ${{ inputs.skip-dirs }}
+        trivyignores: '.trivyignore'
+      env:
+        TRIVY_TIMEOUT: '10m'
+
+    - name: '[ACTION] Upload SARIF to GitHub Security'
+      if: always() && inputs.format == 'sarif'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results.sarif'
+        category: trivy-${{ inputs.scan-type }}
+      continue-on-error: true
+
+    - name: '[ACTION] Upload Trivy report artifact'
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: trivy-${{ inputs.scan-type }}-report-${{ github.sha }}
+        path: trivy-results.sarif
+        retention-days: 30
+        if-no-files-found: ignore

@@ -1,0 +1,61 @@
+name: 'npm audit - Dependency Vulnerabilities'
+description: 'Scan Node.js dependencies for known vulnerabilities using npm audit'
+
+inputs:
+  severity-level:
+    description: 'Minimum severity level to fail (low, moderate, high, critical)'
+    required: false
+    default: 'high'
+  production-only:
+    description: 'Only check production dependencies'
+    required: false
+    default: 'true'
+  continue-on-error:
+    description: 'Continue pipeline even if vulnerabilities found'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: '[ACTION] Run npm audit'
+      shell: bash
+      run: |
+        echo "🔍 [npm audit] Scanning Node.js dependencies for vulnerabilities..."
+        
+        AUDIT_ARGS="--audit-level=${{ inputs.severity-level }}"
+        if [ "${{ inputs.production-only }}" = "true" ]; then
+          AUDIT_ARGS="$AUDIT_ARGS --production"
+        fi
+        
+        # Run npm audit and capture exit code
+        set +e
+        npm audit $AUDIT_ARGS
+        EXIT_CODE=$?
+        set -e
+        
+        if [ $EXIT_CODE -ne 0 ]; then
+          echo "❌ [npm audit] Vulnerabilities found (exit code: $EXIT_CODE)!"
+          
+          # Generate JSON report for artifact
+          npm audit --json > npm-audit-report.json 2>&1 || true
+          
+          if [ "${{ inputs.continue-on-error }}" = "false" ]; then
+            exit $EXIT_CODE
+          else
+            echo "⚠️ [npm audit] Continuing despite vulnerabilities (continue-on-error=true)"
+          fi
+        else
+          echo "✅ [npm audit] No vulnerabilities found"
+          # Create empty report for consistency
+          echo '{"vulnerabilities":{}}' > npm-audit-report.json
+        fi
+
+    - name: '[ACTION] Upload audit report'
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: npm-audit-report-${{ github.sha }}
+        path: npm-audit-report.json
+        retention-days: 30
+        if-no-files-found: ignore
