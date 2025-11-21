@@ -14,16 +14,14 @@ Repositório centralizado de **composite actions** para pipelines CI/CD em múlt
 ```text
 v1/
 ├── nodejs/
-│   ├── 24/                     # Node.js 24 (específico para versão 24)
-│   │   ├── validations/        # STAGE: Validation jobs
-│   │   │   ├── job_setup.yml   # Setup Node.js 24 + pnpm + cache
-│   │   │   ├── job_test.yml    # Testes (unit, integration, e2e, coverage)
-│   │   │   └── job_npm-audit.yml # Dependency vulnerabilities (npm audit)
-│   │   └── build/              # STAGE: Build jobs
-│   │       └── job_build.yml   # pnpm build (NestJS, Express, Next.js, etc)
-│   └── shared/                 # 🆕 Genérico para TODAS as versões Node (18, 20, 22, 24, etc)
-│       └── validations/
-│           └── job_lint.yml    # ESLint + Prettier (works for any Node version)
+│   └── shared/                 # Genérico para TODAS as versões Node (18, 20, 22, 24, etc)
+│       ├── validations/        # STAGE: Validation jobs
+│       │   ├── job_setup.yml   # Setup Node.js + pnpm + cache (any version)
+│       │   ├── job_lint.yml    # ESLint + Prettier (any version)
+│       │   ├── job_test.yml    # Unit/Integration/E2E tests (any version)
+│       │   └── job_npm-audit.yml # Dependency vulnerabilities (any version)
+│       └── build/              # STAGE: Build jobs
+│           └── job_build.yml   # pnpm build (NestJS, Express, Next.js, any Node version)
 ├── shared/                     # Actions agnósticas de linguagem + versão
 │   └── validations/            # STAGE: Validation jobs (shared)
 │       ├── job_gitleaks.yml    # Secret detection (170+ rules)
@@ -52,34 +50,35 @@ v1/
    - `build/` → Compilation, packaging
    - `deploy/` → Deployment to environments (futuro)
 
-2. **Tech-specific + Version** (`v1/nodejs/24/`) → Específico para **Node.js 24**
-   - Se mexer aqui, afeta **apenas** projetos Node.js v24
-   - Exemplos: `job_setup.yml` (usa Node 24), `job_test.yml`, `job_npm-audit.yml`, `job_build.yml`
-
-3. **Tech-specific + Shared** (`v1/nodejs/shared/`) → Genérico para **TODAS as versões Node.js**
+2. **Tech-specific Shared** (`v1/nodejs/shared/`) → Genérico para **TODAS as versões Node.js**
    - Se mexer aqui, afeta projetos Node.js 18, 20, 22, 24, etc
-   - Exemplos: `job_lint.yml` (ESLint/Prettier funcionam em qualquer versão)
+   - **Validations:**
+     - `job_setup.yml` (tem input `node-version` configurável)
+     - `job_lint.yml` (ESLint/Prettier funcionam em qualquer versão)
+     - `job_test.yml` (Jest/Vitest funcionam em qualquer versão)
+     - `job_npm-audit.yml` (npm audit disponível em todas versões)
+   - **Build:**
+     - `job_build.yml` (usa `pnpm build` definido no package.json)
 
-4. **Fully Shared** (`v1/shared/`) → Agnóstico de linguagem **e versão**
+3. **Fully Shared** (`v1/shared/`) → Agnóstico de linguagem **e versão**
    - Funciona para **qualquer** stack tecnológico (Node.js, Python, Go, Java, etc)
    - Funciona para **qualquer versão** (Node 18, 20, 24, Python 3.9, 3.12, etc)
-   - Exemplos: `job_gitleaks.yml` (secrets), `job_semgrep.yml` (SAST), `job_trivy.yml` (vulnerabilities)
+   - **Exemplos:** `job_gitleaks.yml` (secrets), `job_semgrep.yml` (SAST), `job_trivy.yml` (vulnerabilities)
 
-5. **Nomenclatura:**
-   - ❌ Antes: `v1/nodejs/24/lint/action.yml`
-   - ✅ Agora: `v1/nodejs/shared/validations/job_lint.yml`
-   - **Lógica:** Stage (`validations`) → Tech-shared (`nodejs/shared`) → Job (`job_lint.yml`)
+4. **Nomenclatura:**
+   - ❌ Antes: `v1/nodejs/24/build/action.yml`
+   - ✅ Agora: `v1/nodejs/shared/build/job_build.yml`
+   - **Lógica:** Stage (`build`) → Tech-shared (`nodejs/shared`) → Job (`job_build.yml`)
 
 #### **Princípios:**
 
 - ✅ **Stage-based organization**: Jobs agrupados por fase do pipeline (validations, build, deploy)
-- ✅ **3-tier separation**:
+- ✅ **2-tier separation**:
   - `shared/` → Universal (qualquer linguagem + versão)
-  - `nodejs/shared/` → Node-specific (qualquer versão Node)
-  - `nodejs/24/` → Node 24 specific
+  - `nodejs/shared/` → Node-specific (qualquer versão Node: 18, 20, 22, 24, etc)
 - ✅ **Framework-agnostic**: O `package.json` do projeto define como executar cada job
 - ✅ **Versionamento semântico**: `v1/` permite breaking changes no futuro (`v2/`)
-- ✅ **Reutilização máxima**: Shared jobs podem ser usados em projetos Python, Go, Java, etc
+- ✅ **Reutilização máxima**: Shared jobs reutilizados em múltiplas versões e projetos
 
 ## 🎯 Como Usar
 
@@ -102,12 +101,12 @@ jobs:
       - name: GitLeaks
         uses: videoconverterpro/pipeline-template/v1/shared/validations/job_gitleaks@main
       
-      # Node.js 24: Tech-specific jobs
+      # Node.js: Tech-specific jobs (any Node version)
       - name: Setup Node.js
-        uses: videoconverterpro/pipeline-template/v1/nodejs/24/validations/job_setup@main
+        uses: videoconverterpro/pipeline-template/v1/nodejs/shared/validations/job_setup@main
         
       - name: Lint
-        uses: videoconverterpro/pipeline-template/v1/nodejs/24/validations/job_lint@main
+        uses: videoconverterpro/pipeline-template/v1/nodejs/shared/validations/job_lint@main
         
   build:
     needs: validation
@@ -116,10 +115,10 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Setup Node.js
-        uses: videoconverterpro/pipeline-template/v1/nodejs/24/validations/job_setup@main
+        uses: videoconverterpro/pipeline-template/v1/nodejs/shared/validations/job_setup@main
         
       - name: Build
-        uses: videoconverterpro/pipeline-template/v1/nodejs/24/build/job_build@main
+        uses: videoconverterpro/pipeline-template/v1/nodejs/shared/build/job_build@main
 ```
 
 ### NestJS Completo (Prisma + Testes + Security)
@@ -141,13 +140,12 @@ jobs:
       - name: GitLeaks - Secret Detection
         uses: videoconverterpro/pipeline-template/v1/shared/validations/job_gitleaks@main
       
-      # SETUP: Node.js environment
+      # Node.js: Tech-specific jobs (any Node version)
       - name: Setup Node.js
-        uses: videoconverterpro/pipeline-template/v1/nodejs/24/validations/job_setup@main
+        uses: videoconverterpro/pipeline-template/v1/nodejs/shared/validations/job_setup@main
         
-      # SECURITY: Node.js specific dependency scan
       - name: npm audit
-        uses: videoconverterpro/pipeline-template/v1/nodejs/24/validations/job_npm-audit@main
+        uses: videoconverterpro/pipeline-template/v1/nodejs/shared/validations/job_npm-audit@main
         with:
           severity-level: 'high'
           production-only: 'true'
@@ -164,7 +162,7 @@ jobs:
         uses: videoconverterpro/pipeline-template/v1/nodejs/shared/validations/job_lint@main
         
       - name: Test
-        uses: videoconverterpro/pipeline-template/v1/nodejs/24/validations/job_test@main
+        uses: videoconverterpro/pipeline-template/v1/nodejs/shared/validations/job_test@main
         with:
           unit: 'true'
           e2e: 'true'
@@ -187,7 +185,7 @@ jobs:
         uses: videoconverterpro/pipeline-template/v1/nodejs/24/validations/job_setup@main
         
       - name: Build
-        uses: videoconverterpro/pipeline-template/v1/nodejs/24/build/job_build@main
+        uses: videoconverterpro/pipeline-template/v1/nodejs/shared/build/job_build@main
 ```
 
 > 📖 **Testes**: Veja [docs/TESTING.md](docs/TESTING.md) para documentação completa sobre tipos de teste, inputs e estratégias.
@@ -213,16 +211,16 @@ jobs:
         uses: videoconverterpro/pipeline-template/v1/shared/validations/job_gitleaks@main
       
       - name: Setup Node.js
-        uses: videoconverterpro/pipeline-template/v1/nodejs/24/validations/job_setup@main
+        uses: videoconverterpro/pipeline-template/v1/nodejs/shared/validations/job_setup@main
         
       - name: npm audit
-        uses: videoconverterpro/pipeline-template/v1/nodejs/24/validations/job_npm-audit@main
+        uses: videoconverterpro/pipeline-template/v1/nodejs/shared/validations/job_npm-audit@main
         
       - name: Lint
-        uses: videoconverterpro/pipeline-template/v1/nodejs/24/validations/job_lint@main
+        uses: videoconverterpro/pipeline-template/v1/nodejs/shared/validations/job_lint@main
         
       - name: Test
-        uses: videoconverterpro/pipeline-template/v1/nodejs/24/validations/job_test@main
+        uses: videoconverterpro/pipeline-template/v1/nodejs/shared/validations/job_test@main
         
   build:
     needs: validation
@@ -231,10 +229,10 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Setup Node.js
-        uses: videoconverterpro/pipeline-template/v1/nodejs/24/validations/job_setup@main
+        uses: videoconverterpro/pipeline-template/v1/nodejs/shared/validations/job_setup@main
         
       - name: Build
-        uses: videoconverterpro/pipeline-template/v1/nodejs/24/build/job_build@main
+        uses: videoconverterpro/pipeline-template/v1/nodejs/shared/build/job_build@main
 ```
 
 ### Go (Futuro)
