@@ -29,11 +29,16 @@
   - [🛠️ Como Fechar o Gap Sem Pagar](#️-como-fechar-o-gap-sem-pagar)
     - [Fix Automation (DIY)](#fix-automation-diy)
     - [Dashboards (DIY)](#dashboards-diy)
+      - [Opção 1: GitHub Pages + Chart.js](#opção-1-github-pages--chartjs)
+      - [Opção 2: Grafana + Prometheus](#opção-2-grafana--prometheus)
     - [Monitoring (DIY)](#monitoring-diy)
+      - [GitHub Actions: Daily security scan](#github-actions-daily-security-scan)
   - [📈 Roadmap de Evolução](#-roadmap-de-evolução)
     - [Fase 1: Projeto Pessoal (0-2 devs)](#fase-1-projeto-pessoal-0-2-devs)
     - [Fase 2: Pequena Equipe (3-5 devs)](#fase-2-pequena-equipe-3-5-devs)
     - [Fase 3: Startup Crescendo (5-15 devs)](#fase-3-startup-crescendo-5-15-devs)
+      - [Opção A: GitHub Advanced Security](#opção-a-github-advanced-security)
+      - [Opção B: Snyk Pro](#opção-b-snyk-pro)
     - [Fase 4: Empresa Estabelecida (15+ devs)](#fase-4-empresa-estabelecida-15-devs)
   - [🔍 Análise Detalhada por Categoria](#-análise-detalhada-por-categoria)
     - [Secret Detection: 0% Gap](#secret-detection-0-gap)
@@ -52,6 +57,11 @@
     - [Cenário 3: Empresa com 20 Devs](#cenário-3-empresa-com-20-devs)
   - [🎓 Conclusão](#-conclusão)
   - [📚 Referências](#-referências)
+    - [Comparações de Ferramentas](#comparações-de-ferramentas)
+    - [Estudos de ROI](#estudos-de-roi)
+    - [Free Tools](#free-tools)
+    - [Paid Tools](#paid-tools)
+  - [📝 Licença](#-licença)
 
 ---
 
@@ -168,6 +178,7 @@ Recomendação: Pode adiar o fix (baixa prioridade real)
 ```
 
 Você precisa investigar manualmente:
+
 - ❓ Estou usando a função vulnerável?
 - ❓ Já existe exploit público?
 - ❓ Qual o impacto real no meu projeto?
@@ -257,7 +268,7 @@ jobs:
 
 **SonarQube Cloud Dashboard:**
 
-```
+```md
 ┌─────────────────────────────────────────────────────────────┐
 │ VideoConverterPro - Security Overview                      │
 ├─────────────────────────────────────────────────────────────┤
@@ -307,6 +318,7 @@ jobs:
 ```
 
 Você precisa:
+
 - Processar JSON manualmente
 - Construir visualizações customizadas
 - Rastrear histórico manualmente
@@ -342,12 +354,14 @@ npm audit --json | jq '.metadata.vulnerabilities | to_entries[]' \
 **Ferramentas pagas oferecem:**
 
 **SSO/SAML:**
+
 ```yaml
 # Login único com Google Workspace / Azure AD
 # Usuários não precisam criar conta separada
 ```
 
 **RBAC (Role-Based Access Control):**
+
 ```yaml
 Roles:
   - Admin: Pode alterar configurações de segurança
@@ -356,6 +370,7 @@ Roles:
 ```
 
 **Compliance Reports:**
+
 ```yaml
 # SonarQube Enterprise gera:
 - SOC 2 Type II report
@@ -367,6 +382,7 @@ Roles:
 ```
 
 **SLA & Suporte:**
+
 ```yaml
 - Uptime: 99.9% garantido
 - Support: Ticket response em 4h (critical issues)
@@ -415,7 +431,7 @@ Roles:
 
 **ROI:**
 
-```
+```md
 5 devs × $49 = $245/mês
 Economia de tempo: ~4h/dev/mês (fix automation)
 4h × 5 devs × $50/h = $1000/mês economizado
@@ -447,7 +463,7 @@ ROI: 400% 🎯
 
 **ROI:**
 
-```
+```md
 $500/mês
 Economia: 8h/mês (priorização + fix automation)
 8h × $50/h = $400/mês economizado
@@ -534,7 +550,7 @@ volumes:
 
 **ROI:**
 
-```
+```md
 VPS $20/mês + 2h/mês manutenção = $120/mês custo total
 vs SonarQube Cloud $360/ano = $30/mês
 Economia: $90/ano (vale se você já tem VPS)
@@ -738,7 +754,7 @@ jobs:
 
 ### Dashboards (DIY)
 
-**Opção 1: GitHub Pages + Chart.js**
+#### Opção 1: GitHub Pages + Chart.js
 
 ```html
 <!-- docs/security-dashboard.html -->
@@ -793,7 +809,7 @@ jobs:
 
 ---
 
-**Opção 2: Grafana + Prometheus**
+#### Opção 2: Grafana + Prometheus
 
 ```yaml
 # docker-compose.yml
@@ -874,7 +890,7 @@ EOF
 
 ### Monitoring (DIY)
 
-**GitHub Actions: Daily security scan**
+#### GitHub Actions: Daily security scan
 
 ```yaml
 # .github/workflows/daily-security-scan.yml
@@ -977,6 +993,7 @@ Manutenção: 1h/semana
 ```
 
 **Quando migrar para Fase 2:**
+
 - Time cresceu para 3+ devs
 - >5h/semana corrigindo vulnerabilidades manualmente
 - Cliente pediu compliance report
@@ -1006,6 +1023,7 @@ Tempo economizado: 4h/semana (vs Fase 1)
 ```
 
 **Quando migrar para Fase 3:**
+
 - Time >5 devs
 - Múltiplas linguagens (JS + Python + Go)
 - Precisa de dashboard executivo
@@ -1016,7 +1034,7 @@ Tempo economizado: 4h/semana (vs Fase 1)
 
 **Stack recomendado:** Híbrido (Free + 1-2 pagas)
 
-**Opção A: GitHub Advanced Security**
+#### Opção A: GitHub Advanced Security
 
 ```yaml
 Security Tools:
@@ -1033,7 +1051,7 @@ Cobertura: 98%
 ROI: Positivo a partir de 5 devs
 ```
 
-**Opção B: Snyk Pro**
+#### Opção B: Snyk Pro
 
 ```yaml
 Security Tools:
@@ -1052,6 +1070,7 @@ ROI: Neutro (break-even em 10 devs)
 ```
 
 **Quando migrar para Fase 4:**
+
 - Time >15 devs
 - Cliente enterprise exige SOC 2
 - Múltiplos produtos/projetos
@@ -1365,7 +1384,7 @@ vs Burp Suite Pro = $449/ano
 
 **Análise:**
 
-```
+```text
 Custo free stack: $0/mês
 Tempo gasto: 2h/semana (8h/mês)
 Valor do tempo: 8h × $50/h = $400/mês
@@ -1388,7 +1407,7 @@ ROI: -$300/mês ❌ (não vale a pena)
 
 **Análise:**
 
-```
+```text
 Custo free stack: $0/mês
 Tempo gasto: 5 devs × 8h/mês = 40h/mês
 Valor do tempo: 40h × $50/h = $2000/mês
@@ -1412,7 +1431,7 @@ ROI%: 308% return
 
 **Análise:**
 
-```
+```text
 Custo free stack: $0/mês
 Tempo gasto: 20 devs × 8h/mês = 160h/mês
 Valor do tempo: 160h × $50/h = $8000/mês
@@ -1510,7 +1529,7 @@ $6000/ano economizado = 120h de desenvolvimento = 2-3 features grandes
 
 ---
 
-**📝 Licença**
+## 📝 Licença
 
 **Proprietário** - Bruno Roberto Morillo  
 CPF: 460.876.598-11  
