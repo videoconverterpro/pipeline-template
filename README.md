@@ -7,9 +7,11 @@
 
 Repositório centralizado de **composite actions** para pipelines CI/CD em múltiplas tecnologias.
 
+> 📖 **Documentação Completa**: Consulte [`docs/`](docs/) para guias detalhados sobre cada action.
+
 ## 📁 Estrutura
 
-```
+```text
 v1/
 ├── nodejs/24/              # Node.js 24 (genérico para qualquer framework)
 │   ├── setup/              # Setup Node.js + pnpm + cache
