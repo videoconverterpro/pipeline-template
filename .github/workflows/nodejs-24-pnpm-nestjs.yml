@@ -37,7 +37,7 @@ jobs:
         uses: videoconverterpro/pipeline-template/v1/nodejs/shared/validations/setup@main
         with:
           node-version: '24'
-          package-manager: 'pnpm'
+          pnpm-version: '10'
 
       # SECURITY LAYER 2: Auditoria de vulnerabilidades em dependências
       - name: "[STEP] npm audit"
@@ -96,7 +96,7 @@ jobs:
         uses: videoconverterpro/pipeline-template/v1/nodejs/shared/validations/setup@main
         with:
           node-version: '24'
-          package-manager: 'pnpm'
+          pnpm-version: '10'
 
       # Build: Compila aplicação NestJS e faz upload do artifact dist/
       - name: "[STEP] Build"
