@@ -106,6 +106,7 @@ jobs:
 ```
 
 **Resultado:**
+
 - ✅ Código formatado (Prettier)
 - ✅ Código lintado (ESLint)
 - ✅ Build funcionando
@@ -259,6 +260,7 @@ with:
 **Causa:** Scripts não configurados no package.json.
 
 **Solução:** Adicione os scripts ou customize os nomes:
+
 ```yaml
 with:
   format-script: 'seu-script-format'
@@ -269,6 +271,7 @@ with:
 **Causa:** pnpm-lock.yaml não commitado ou .gitignore bloqueando.
 
 **Solução:** Commit o lock file:
+
 ```bash
 git add pnpm-lock.yaml
 git commit -m "chore: adicionar lock file"
@@ -278,7 +281,8 @@ git commit -m "chore: adicionar lock file"
 
 **Causa:** Diferenças de ambiente ou dependências faltando.
 
-**Solução:** 
+**Solução:**
+
 1. Verifique Node.js/pnpm versions
 2. Execute localmente: `pnpm install --frozen-lockfile`
 3. Cheque logs do CI para erro específico

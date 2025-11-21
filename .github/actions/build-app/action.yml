@@ -1,81 +1,16 @@
-# ============================================================================
-# 🏗️ COMPOSITE ACTION REUTILIZÁVEL: Build + Artifact Upload
-# ============================================================================
-# 
-# PROPÓSITO:
-#   Action genérica para build de projetos Node.js e upload de artifacts:
-#   - Executa script de build configurado
-#   - Upload da pasta dist/ como artifact
-#   100% reutilizável por qualquer projeto Node.js.
-#
-# COMO USAR:
-#   steps:
-#     - uses: actions/checkout@v4
-#     - uses: videoconverterpro/pipeline-template/.github/actions/setup-node-pnpm@main
-#     - uses: videoconverterpro/pipeline-template/.github/actions/build-app@main
-#       with:
-#         build-script: 'build'
-#         dist-folder: 'dist'
-#         artifact-retention: 7
-#
-# PRÉ-REQUISITOS:
-#   - node_modules instalado (usar setup-node-pnpm antes)
-#   - Script de build no package.json
-#
-# PROPRIEDADE:
-#   Bruno Roberto Morillo - CPF: 460.876.598-11
-#   © 2025 VideoConverterPro - Todos os direitos reservados
-#
-# ============================================================================
-
-name: "🏗️ Build + Artifact"
-description: "Build da aplicação e upload de artifact"
-
-inputs:
-  build-script:
-    description: "Nome do script de build no package.json"
-    required: false
-    default: "build"
-  
-  dist-folder:
-    description: "Nome da pasta de output (dist, build, out, etc)"
-    required: false
-    default: "dist"
-  
-  artifact-retention:
-    description: "Dias de retenção do artifact no GitHub"
-    required: false
-    default: "7"
+name: Build da Aplicação
+description: Executa o build da aplicação NestJS
 
 runs:
-  using: "composite"
+  using: composite
   steps:
-    # ========================================================================
-    # STEP 1: Build da aplicação
-    # ========================================================================
-    - name: "🏗️ [ACTION] Build da aplicação"
+    - name: "[ACTION] Build - Compilar aplicação"
       shell: bash
-      run: |
-        echo "🏗️ Buildando aplicação..."
-        pnpm run ${{ inputs.build-script }}
-        echo "✅ Build concluído com sucesso!"
-        
-        # Verificar se pasta de output existe
-        if [ ! -d "${{ inputs.dist-folder }}" ]; then
-          echo "❌ Erro: Pasta '${{ inputs.dist-folder }}' não encontrada após build!"
-          exit 1
-        fi
-        
-        echo "📦 Conteúdo da pasta ${{ inputs.dist-folder }}:"
-        ls -lah ${{ inputs.dist-folder }}
-    
-    # ========================================================================
-    # STEP 2: Upload do artifact
-    # ========================================================================
-    - name: "📤 [ACTION] Upload artifact - ${{ inputs.dist-folder }}"
+      run: pnpm build
+
+    - name: "[ACTION] Artifact - Upload dist/"
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ inputs.dist-folder }}-${{ github.sha }}
-        path: ${{ inputs.dist-folder }}
-        retention-days: ${{ inputs.artifact-retention }}
-        if-no-files-found: error
+        name: dist-${{ github.sha }}
+        path: dist/
+        retention-days: 7
